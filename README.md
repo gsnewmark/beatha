@@ -1,4 +1,4 @@
-# beatha
+# beatha [![Build Status](https://travis-ci.org/gsnewmark/beatha.png?branch=master)](https://travis-ci.org/gsnewmark/beatha)
 
 Experiments with slightly modified cellular automata and Om components to
 visualize them.

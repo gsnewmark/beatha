@@ -45,6 +45,63 @@
                    (range (get-in data [:grid :height])))))))
 
 
-(om/root grid-view
+(defn handle-config-change
+  [e owner state key]
+  (let [value (.. e -target -value)]
+    (if (re-matches #"[0-9]+" value)
+      (om/set-state! owner key value)
+      (om/set-state! owner key (get state key)))))
+
+(defn grid-config-view
+  [data owner]
+  (reify
+    om/IRenderState
+    (render-state [_ {:keys [width height change-grid-dimensions] :as state}]
+      (dom/div
+       #js {:role "form" :className "automaton-grid-control"}
+       (dom/input
+        #js {:type "text" :className "form-control" :value width
+             :onChange #(handle-config-change % owner state :width)})
+       (dom/input
+        #js {:type "text" :className "form-control" :value height
+             :onChange #(handle-config-change % owner state :height)})
+       (dom/button
+        #js {:type "submit" :className "btn btn-primary btn-lg btn-block"
+             :onClick
+             #(put! change-grid-dimensions [width height])} "Reset")))))
+
+
+(defn app-view
+  [data owner]
+  (reify
+    om/IInitState
+    (init-state [_]
+      {:change-grid-dimensions (chan)})
+    om/IWillMount
+    (will-mount [_]
+      (let [c (om/get-state owner :change-grid-dimensions)]
+        (go (loop []
+              (let [[width height] (<! c)]
+                (om/transact! data :grid
+                  (fn [grid] (assoc grid :width width :height height)))
+                (recur))))))
+    om/IRenderState
+    (render-state [_ state]
+      (dom/div
+       #js {:className "container-liquid"}
+       (dom/div
+        #js {:className "row"}
+        (dom/div #js {:className "col-sm-2"}
+                 (om/build grid-config-view
+                           data
+                           {:init-state
+                            (merge state
+                                   {:width (get-in data [:grid :width])
+                                    :height (get-in data [:grid :height])})}))
+        (dom/div #js {:className "col-sm-10"}
+                 (om/build grid-view data)))))))
+
+
+(om/root app-view
          app-state
          {:target (. js/document (getElementById "app"))})

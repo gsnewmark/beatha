@@ -11,9 +11,9 @@
 
   :dependencies [[org.clojure/clojure "1.6.0-beta1"]
                  [org.clojure/clojurescript "0.0-2156"]
-                 [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
-                 [om "0.4.1"]
-                 [com.facebook/react "0.8.0.1"]
+                 [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
+                 [om "0.5.0"]
+                 [com.facebook/react "0.9.0"]
                  [org.webjars/bootstrap "3.1.1"]]
 
   :plugins [[lein-cljsbuild "1.0.2"]]

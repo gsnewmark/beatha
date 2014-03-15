@@ -6,8 +6,11 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:grid {:width 10 :height 10}}))
+(def app-state (atom {:grid {:width 10 :height 10}
+                      :display {:width 600 :height 600}}))
 
+;;; TODO
+(defn color-for [cell] "#212")
 
 (defn alive-cell-view
   [cell owner]
@@ -23,6 +26,18 @@
     (render [_]
       (dom/span #js {:className "cell dead"} "_"))))
 
+(defn default-cell [cell owner]
+  (reify
+    om/IRenderState
+    (render-state [_ {:keys [width height t]}]
+      (let [st #js {:backgroundColor (color-for cell)
+                    :width width
+                    :height height
+                    :float "left"
+                    :borderStyle "solid";
+                    :borderWidth "1px"}]
+        (dom/div #js {:style st} t)))))
+
 (defmulti cell-view (fn [cell _] (:state cell)))
 
 (defmethod cell-view :alive
@@ -31,18 +46,32 @@
 (defmethod cell-view :dead
   [cell owner] (dead-cell-view cell owner))
 
+(defmethod cell-view :default
+  [cell owner] (default-cell cell owner))
+
 
 (defn grid-view
   [data owner]
   (reify
     om/IRender
     (render [_]
-      (apply dom/div #js {:className "automaton-grid"}
-             (mapv (fn [y]
-                     (apply dom/div #js {:className "automaton-row"}
-                            (mapv (fn [x] (+ x y))
-                                  (range (get-in data [:grid :width])))))
-                   (range (get-in data [:grid :height])))))))
+      (let [cell-width (/ (get-in data [:display :width])
+                          (get-in data [:grid :width]))
+            cell-height (/ (get-in data [:display :height])
+                           (get-in data [:grid :height]))]
+        (apply dom/div #js {:className "automaton-grid"}
+               (mapv (fn [y]
+                       (apply dom/div #js {:className "automaton-row row"}
+                              (mapv (fn [x] (om/build cell-view
+                                                     ;; TODO correct cell, not
+                                                     ;; all data
+                                                     data
+                                                     {:init-state
+                                                      {:width cell-width
+                                                       :height cell-height
+                                                       :t (+ x y)}}))
+                                    (range (get-in data [:grid :width])))))
+                     (range (get-in data [:grid :height]))))))))
 
 
 (defn handle-config-change

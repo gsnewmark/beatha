@@ -9,11 +9,11 @@
 }
 
 .automaton-cell.speaking {
-    background-color: #268bd2;
+    background-color: #6c71c4;
 }
 
 .automaton-cell.dead {
-    background-color: #dc322f;
+    background-color: #93a1a1;
 }
 
 .row {

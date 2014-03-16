@@ -34,7 +34,7 @@
             grid-height (get-in data [:grid :height])
             cell-width (/ (get-in data [:display :width]) grid-width)
             cell-height (/ (get-in data [:display :height]) grid-height)
-            cells (get-in data [:grid :cells])]
+            default-cell (:default-cell state)]
         (apply dom/div #js {:className "automaton-grid"}
                (mapv (fn [y]
                        (apply dom/div #js {:className "automaton-row row"}
@@ -43,7 +43,7 @@
                                  (om/build
                                   cell-view
                                   (merge (get-in data [:grid :cells [x y]]
-                                                 a/default-cell)
+                                                 default-cell)
                                          {:width cell-width
                                           :height cell-height})
                                   {:init-state
@@ -106,65 +106,79 @@
         "Reset display")))))
 
 
-(defn app-view
-  [data owner]
-  (reify
-    om/IInitState
-    (init-state [_]
-      {:change-grid-dimensions (chan)
-       :change-display-dimensions (chan)
-       :cell-state-changed (chan)})
-    om/IWillMount
-    (will-mount [_]
-      (let [grid-c (om/get-state owner :change-grid-dimensions)
-            display-c (om/get-state owner :change-display-dimensions)
-            cell-state-c (om/get-state owner :cell-state-changed)]
-        (go (loop []
-              (let [[width height] (<! grid-c)]
-                (om/transact! data :grid
-                  (fn [grid] (assoc grid :width width :height height :cells {})))
-                (recur))))
-        (go (loop []
-              (let [[width height] (<! display-c)]
-                (om/transact! data :display
-                  (fn [display] (assoc display :width width :height height)))
-                (recur))))
-        (go (loop []
-              (let [[x y] (<! cell-state-c)]
-                (om/transact!
-                 data [:grid :cells]
-                 (fn [grid]
-                   (let [cell (get grid [x y] a/default-cell)
-                         state (:state cell)
-                         cell (assoc cell :state (a/next-state state))]
-                     (assoc grid [x y] cell))))
-                (recur))))))
-    om/IRenderState
-    (render-state [_ state]
-      (dom/div
-       #js {:className "container-liquid"}
-       (dom/div
-        #js {:className "row"}
+(defn gen-app-view
+  [automaton-spec]
+  (fn [data owner]
+    (reify
+      om/IInitState
+      (init-state [_]
+        {:change-grid-dimensions (chan)
+         :change-display-dimensions (chan)
+         :cell-state-changed (chan)})
+      om/IWillMount
+      (will-mount [_]
+        (let [grid-c (om/get-state owner :change-grid-dimensions)
+              display-c (om/get-state owner :change-display-dimensions)
+              cell-state-c (om/get-state owner :cell-state-changed)]
+          (go (loop []
+                (let [[width height] (<! grid-c)]
+                  (om/transact!
+                   data :grid
+                   (fn [grid]
+                     (assoc grid :width width :height height :cells {})))
+                  (recur))))
+          (go (loop []
+                (let [[width height] (<! display-c)]
+                  (om/transact!
+                   data :display
+                   (fn [display]
+                     (assoc display :width width :height height)))
+                  (recur))))
+          (go (loop []
+                (let [[x y] (<! cell-state-c)]
+                  (om/transact!
+                   data [:grid :cells]
+                   (fn [grid]
+                     (let [cell (get grid [x y]
+                                     (a/default-cell automaton-spec))
+                           state (:state cell)
+                           cell (assoc cell
+                                  :state (a/next-state automaton-spec state))]
+                       (assoc grid [x y] cell))))
+                  (recur))))))
+      om/IRenderState
+      (render-state [_ state]
         (dom/div
-         #js {:className "col-sm-2"}
+         #js {:className "container-liquid"}
          (dom/div
           #js {:className "row"}
-          (om/build grid-config-view
-                    data
-                    {:init-state
-                     (merge state
-                            {:width (get-in data [:grid :width])
-                             :height (get-in data [:grid :height])})}))
-         (dom/div
-          #js {:className "row"}
-          (om/build display-config-view
-                    data
-                    {:init-state
-                     (merge state
-                            {:width (get-in data [:display :width])
-                             :height (get-in data [:display :height])})})))
-        (dom/div #js {:className "col-sm-10"}
-                 (om/build grid-view data {:init-state state})))))))
+          (dom/div
+           #js {:className "col-sm-2"}
+           (dom/div
+            #js {:className "row"}
+            (om/build grid-config-view
+                      data
+                      {:init-state
+                       (merge state
+                              {:width (get-in data [:grid :width])
+                               :height (get-in data [:grid :height])})}))
+           (dom/div
+            #js {:className "row"}
+            (om/build display-config-view
+                      data
+                      {:init-state
+                       (merge state
+                              {:width (get-in data [:display :width])
+                               :height (get-in data [:display :height])})})))
+          (dom/div #js {:className "col-sm-10"}
+                   (om/build grid-view
+                             data
+                             {:init-state
+                              (assoc state
+                                :default-cell
+                                (a/default-cell automaton-spec))}))))))))
 
 
-(om/root app-view app-state {:target (. js/document (getElementById "app"))})
+(om/root (gen-app-view a/default-automata)
+         app-state
+         {:target (. js/document (getElementById "app"))})

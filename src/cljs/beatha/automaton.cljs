@@ -10,3 +10,9 @@
   is encoded as pair of it's coordinates in a world."
   [[x y]]
   (for [dx [-1 0 1] dy [-1 0 1] :when (not= 0 dx dy)] [(+ x dx) (+ y dy)]))
+
+(def next-state
+  "Defines transitions between cell's states."
+  {:dead :alive :alive :speaking :speaking :dead})
+
+(def default-cell {:state :dead})

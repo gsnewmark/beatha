@@ -1,0 +1,21 @@
+.automaton-cell {
+    float: left;
+    border-style: solid;
+    border-width: 1px;
+}
+
+.automaton-cell.alive {
+    background-color: #859900;
+}
+
+.automaton-cell.speaking {
+    background-color: #268bd2;
+}
+
+.automaton-cell.dead {
+    background-color: #dc322f;
+}
+
+.row {
+    margin-left: 0px;
+}

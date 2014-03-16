@@ -8,21 +8,23 @@
 (enable-console-print!)
 
 (def app-state (atom {:grid {:width 10 :height 10 :cells {}}
-                      :display {:width 600 :height 600}}))
+                      :display {:width 600 :height 600}
+                      :started false}))
 
 
 (defn cell-view
-  [cell owner]
+  [data owner]
   (reify
     om/IRenderState
     (render-state [_ {:keys [cell-state-changed x y]}]
-      (let [{:keys [width height state]} cell
+      (let [{:keys [width height state started]} data
             st #js {:width width :height height}]
         (dom/div #js {:style st
                       :className
                       (apply str
                              (interpose " " ["automaton-cell" (name state)]))
-                      :onClick #(put! cell-state-changed [x y])})))))
+                      :onClick #(when-not started
+                                  (put! cell-state-changed [x y]))})))))
 
 
 (defn grid-view
@@ -44,6 +46,7 @@
                                   cell-view
                                   (merge (get-in data [:grid :cells [x y]]
                                                  default-cell)
+                                         {:started (:started data)}
                                          {:width cell-width
                                           :height cell-height})
                                   {:init-state
@@ -68,20 +71,26 @@
   (reify
     om/IRenderState
     (render-state [_ {:keys [width height change-grid-dimensions] :as state}]
-      (dom/div
-       #js {:role "form" :className "automaton-grid-control"}
-       (dom/label nil "Grid width")
-       (dom/input
-        #js {:type "text" :className "form-control" :value width
-             :onChange #(handle-numeric-config-change % owner state :width)})
-       (dom/label nil "Grid height")
-       (dom/input
-        #js {:type "text" :className "form-control" :value height
-             :onChange #(handle-numeric-config-change % owner state :height)})
-       (dom/button
-        #js {:type "submit" :className "btn btn-primary btn-lg btn-block"
-             :onClick #(put! change-grid-dimensions [width height])}
-        "Reset grid")))))
+      (let [started (:started data)]
+        (dom/div
+         #js {:role "form" :className "automaton-grid-control"}
+         (dom/label nil "Grid width")
+         (dom/input
+          #js {:type "text" :className "form-control" :value width
+               :disabled started
+               :onChange
+               #(handle-numeric-config-change % owner state :width)})
+         (dom/label nil "Grid height")
+         (dom/input
+          #js {:type "text" :className "form-control" :value height
+               :disabled started
+               :onChange
+               #(handle-numeric-config-change % owner state :height)})
+         (dom/button
+          #js {:type "button" :className "btn btn-danger btn-lg btn-block"
+               :disabled started
+               :onClick #(put! change-grid-dimensions [width height])}
+          "Reset grid"))))))
 
 
 (defn display-config-view
@@ -90,20 +99,26 @@
     om/IRenderState
     (render-state [_ {:keys [width height change-display-dimensions]
                       :as state}]
-      (dom/div
-       #js {:role "form" :className "automaton-display-control"}
-       (dom/label nil "Display width")
-       (dom/input
-        #js {:type "text" :className "form-control" :value width
-             :onChange #(handle-numeric-config-change % owner state :width)})
-       (dom/label nil "Display height")
-       (dom/input
-        #js {:type "text" :className "form-control" :value height
-             :onChange #(handle-numeric-config-change % owner state :height)})
-       (dom/button
-        #js {:type "submit" :className "btn btn-primary btn-lg btn-block"
-             :onClick #(put! change-display-dimensions [width height])}
-        "Reset display")))))
+      (let [started (:started data)]
+        (dom/div
+         #js {:role "form" :className "automaton-display-control"}
+         (dom/label nil "Display width")
+         (dom/input
+          #js {:type "text" :className "form-control" :value width
+               :disabled started
+               :onChange
+               #(handle-numeric-config-change % owner state :width)})
+         (dom/label nil "Display height")
+         (dom/input
+          #js {:type "text" :className "form-control" :value height
+               :disabled started
+               :onChange
+               #(handle-numeric-config-change % owner state :height)})
+         (dom/button
+          #js {:type "button" :className "btn btn-warning btn-lg btn-block"
+               :disabled started
+               :onClick #(put! change-display-dimensions [width height])}
+          "Reset display"))))))
 
 
 (defn gen-app-view
@@ -114,12 +129,14 @@
       (init-state [_]
         {:change-grid-dimensions (chan)
          :change-display-dimensions (chan)
-         :cell-state-changed (chan)})
+         :cell-state-changed (chan)
+         :started (chan)})
       om/IWillMount
       (will-mount [_]
         (let [grid-c (om/get-state owner :change-grid-dimensions)
               display-c (om/get-state owner :change-display-dimensions)
-              cell-state-c (om/get-state owner :cell-state-changed)]
+              cell-state-c (om/get-state owner :cell-state-changed)
+              started-c (om/get-state owner :started)]
           (go (loop []
                 (let [[width height] (<! grid-c)]
                   (om/transact!
@@ -145,6 +162,10 @@
                            cell (assoc cell
                                   :state (a/next-state automaton-spec state))]
                        (assoc grid [x y] cell))))
+                  (recur))))
+          (go (loop []
+                (let [started (<! started-c)]
+                  (om/update! data :started started)
                   (recur))))))
       om/IRenderState
       (render-state [_ state]
@@ -169,7 +190,15 @@
                       {:init-state
                        (merge state
                               {:width (get-in data [:display :width])
-                               :height (get-in data [:display :height])})})))
+                               :height (get-in data [:display :height])})}))
+           (let [started (:started data)]
+             (dom/div
+              #js {:className "row"}
+              (dom/button
+               #js {:type "button"
+                    :className "btn btn-primary btn-lg btn-block"
+                    :onClick #(put! (:started state) (not started))}
+               (if-not started "Start" "Stop")))))
           (dom/div #js {:className "col-sm-10"}
                    (om/build grid-view
                              data

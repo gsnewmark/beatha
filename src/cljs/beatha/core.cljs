@@ -1,5 +1,5 @@
 (ns beatha.core.core
-  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require-macros [cljs.core.async.macros :refer [go alt!]])
   (:require [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             [cljs.core.async :refer [put! chan <!]]
@@ -137,36 +137,38 @@
               display-c (om/get-state owner :change-display-dimensions)
               cell-state-c (om/get-state owner :cell-state-changed)
               started-c (om/get-state owner :started)]
-          (go (loop []
-                (let [[width height] (<! grid-c)]
-                  (om/transact!
-                   data :grid
-                   (fn [grid]
-                     (assoc grid :width width :height height :cells {})))
-                  (recur))))
-          (go (loop []
-                (let [[width height] (<! display-c)]
-                  (om/transact!
-                   data :display
-                   (fn [display]
-                     (assoc display :width width :height height)))
-                  (recur))))
-          (go (loop []
-                (let [[x y] (<! cell-state-c)]
-                  (om/transact!
-                   data [:grid :cells]
-                   (fn [grid]
-                     (let [cell (get grid [x y]
-                                     (a/default-cell automaton-spec))
-                           state (:state cell)
-                           cell (assoc cell
-                                  :state (a/next-state automaton-spec state))]
-                       (assoc grid [x y] cell))))
-                  (recur))))
-          (go (loop []
-                (let [started (<! started-c)]
-                  (om/update! data :started started)
-                  (recur))))))
+          (go (while true
+                (alt!
+                  grid-c
+                  ([[width height]]
+                     (println width height)
+                     (om/transact!
+                      data :grid
+                      (fn [grid]
+                        (assoc grid :width width :height height :cells {}))))
+
+                  display-c
+                  ([[width height]]
+                     (om/transact!
+                      data :display
+                      (fn [display]
+                        (assoc display :width width :height height))))
+
+                  cell-state-c
+                  ([[x y]]
+                     (om/transact!
+                      data [:grid :cells]
+                      (fn [grid]
+                        (let [cell (get grid [x y]
+                                        (a/default-cell automaton-spec))
+                              state (:state cell)
+                              cell (assoc cell
+                                     :state
+                                     (a/next-state automaton-spec state))]
+                          (assoc grid [x y] cell)))))
+
+                  started-c
+                  ([started] (om/update! data :started started)))))))
       om/IRenderState
       (render-state [_ state]
         (dom/div

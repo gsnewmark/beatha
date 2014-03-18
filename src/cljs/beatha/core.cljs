@@ -187,6 +187,14 @@
           #js {:className "row"}
           (dom/div
            #js {:className "col-sm-2"}
+           (let [started (:started data)]
+             (dom/div
+              #js {:className "row"}
+              (dom/button
+               #js {:type "button"
+                    :className "btn btn-primary btn-lg btn-block"
+                    :onClick #(put! (:started state) (not started))}
+               (if-not started "Start" "Stop"))))
            (dom/div
             #js {:className "row"}
             (om/build grid-config-view
@@ -202,15 +210,7 @@
                       {:init-state
                        (merge state
                               {:width (get-in data [:display :width])
-                               :height (get-in data [:display :height])})}))
-           (let [started (:started data)]
-             (dom/div
-              #js {:className "row"}
-              (dom/button
-               #js {:type "button"
-                    :className "btn btn-primary btn-lg btn-block"
-                    :onClick #(put! (:started state) (not started))}
-               (if-not started "Start" "Stop")))))
+                               :height (get-in data [:display :height])})})))
           (dom/div #js {:className "col-sm-10"}
                    (om/build grid-view
                              data

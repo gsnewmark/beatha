@@ -223,4 +223,4 @@
 (om/root (gen-app-view a/game-of-life)
          app-state
          {:target (. js/document (getElementById "app"))
-          :init-state {:animation-step 500}})
+          :init-state {:animation-step 750}})

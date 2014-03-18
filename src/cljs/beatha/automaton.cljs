@@ -27,3 +27,37 @@
       [_ state]
       ({:dead :alive :alive :speaking :speaking :dead} state))
     (next-grid [_ grid] grid)))
+
+(def game-of-life
+  (reify
+    AutomatonSpecification
+    (default-cell [_] {:state :dead})
+    (next-state
+      [_ state]
+      ({:dead :alive :alive :dead} state))
+    (next-grid [this grid]
+      (let [{:keys [width height cells]} grid]
+        (->> (mapcat
+               (fn [y]
+                 (map
+                  (fn [x]
+                    (let [get-cell (fn [coords]
+                                     (get cells coords (default-cell this)))
+                          n (->> (neighbours [x y])
+                                 (map get-cell)
+                                 (filter #(= (:state %) :alive))
+                                 count)
+                          state (:state (get-cell [x y]))
+                          alive? (= state :alive)]
+                      {[x y]
+                       (cond
+                        (and alive? (< n 2)) {:state :dead}
+                        (and alive? (or (= n 2) (= n 3))) {:state :alive}
+                        (and alive? (> n 3)) {:state :dead}
+                        (and (not alive?) (= n 3)) {:state :alive})}))
+                  (range width)))
+               (range height))
+             (remove #(let [[cell] (vals %)] (nil? cell)))
+             (remove #(let [[cell] (vals %)] (= (:state cell) :dead)))
+             (reduce merge {})
+             (assoc grid :cells))))))

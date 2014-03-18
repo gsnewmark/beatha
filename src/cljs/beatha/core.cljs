@@ -141,7 +141,6 @@
                 (alt!
                   grid-c
                   ([[width height]]
-                     (println width height)
                      (om/transact!
                       data :grid
                       (fn [grid]
@@ -168,7 +167,18 @@
                           (assoc grid [x y] cell)))))
 
                   started-c
-                  ([started] (om/update! data :started started)))))))
+                  ([started]
+                     (om/update! data :started started)
+                     (if started
+                       (om/set-state!
+                        owner :update-loop-id
+                        (js/setInterval
+                         (fn [] (om/transact!
+                                data :grid
+                                (partial a/next-grid automaton-spec)))
+                         (or (om/get-state owner :animation-step) 1000)))
+                       (when-let [id (om/get-state owner :update-loop-id)]
+                         (js/clearTimeout id)))))))))
       om/IRenderState
       (render-state [_ state]
         (dom/div
@@ -210,6 +220,7 @@
                                 (a/default-cell automaton-spec))}))))))))
 
 
-(om/root (gen-app-view a/default-automata)
+(om/root (gen-app-view a/game-of-life)
          app-state
-         {:target (. js/document (getElementById "app"))})
+         {:target (. js/document (getElementById "app"))
+          :init-state {:animation-step 500}})

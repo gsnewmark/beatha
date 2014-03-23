@@ -3,8 +3,8 @@
           :test-paths ["test/cljs"]
           :resources-paths ["dev-resources"]
 
-          :dependencies [[com.cemerick/double-check "0.5.6-SNAPSHOT"]]
-          :plugins [[com.cemerick/clojurescript.test "0.3.0-SNAPSHOT"]]
+          :dependencies [[com.cemerick/double-check "0.5.7-SNAPSHOT"]]
+          :plugins [[com.cemerick/clojurescript.test "0.3.0"]]
 
           :cljsbuild
           {:builds

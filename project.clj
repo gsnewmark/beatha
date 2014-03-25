@@ -9,7 +9,7 @@
 
   :source-paths ["src/clj" "src/cljs"]
 
-  :dependencies [[org.clojure/clojure "1.6.0-RC2"]
+  :dependencies [[org.clojure/clojure "1.6.0-RC4"]
                  [org.clojure/clojurescript "0.0-2156"]
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [om "0.5.0"]

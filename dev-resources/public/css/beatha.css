@@ -4,6 +4,14 @@
     border-width: 1px;
 }
 
+.row {
+    margin-left: 0px;
+}
+
+.automaton-cell.dead {
+    background-color: #93a1a1;
+}
+
 .automaton-cell.alive {
     background-color: #859900;
 }
@@ -12,10 +20,30 @@
     background-color: #6c71c4;
 }
 
-.automaton-cell.dead {
-    background-color: #93a1a1;
+.automaton-cell.a {
+    background-color: #859900;
 }
 
-.row {
-    margin-left: 0px;
+.automaton-cell.b {
+    background-color: #6c71c4;
+}
+
+.automaton-cell.lc {
+    background-color: #b58900;
+}
+
+.automaton-cell.rc {
+    background-color: #b58900;
+}
+
+.automaton-cell.x {
+    background-color: black;
+}
+
+.automaton-cell.f {
+    background-color: #dc322f;
+}
+
+.automaton-cell.m {
+    background-color: black;
 }

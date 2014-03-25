@@ -163,7 +163,8 @@
                               state (:state cell)
                               cell (assoc cell
                                      :state
-                                     (a/next-state automaton-spec state))]
+                                     (a/next-initial-state automaton-spec
+                                                           state))]
                           (assoc grid [x y] cell)))))
 
                   started-c
@@ -220,7 +221,7 @@
                                 (a/default-cell automaton-spec))}))))))))
 
 
-(om/root (gen-app-view a/game-of-life)
+(om/root (gen-app-view a/unrestricted-language-parser)
          app-state
          {:target (. js/document (getElementById "app"))
           :init-state {:animation-step 750}})

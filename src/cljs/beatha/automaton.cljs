@@ -1,7 +1,5 @@
 (ns beatha.automaton)
 
-(enable-console-print!)
-
 (defprotocol AutomatonSpecification
   "Describes basic interactions with particular set of cellular automata
   rules."

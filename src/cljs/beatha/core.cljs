@@ -19,7 +19,7 @@
     (render-state [_ {:keys [cell-state-changed x y]}]
       (let [{:keys [width height state started]} data
             st #js {:width width :height height}]
-        (dom/td #js {:style st
+        (dom/div #js {:style st
                       :className
                       (apply str
                              (interpose " " ["automaton-cell" (name state)]))
@@ -37,9 +37,9 @@
             cell-width (/ (get-in data [:display :width]) grid-width)
             cell-height (/ (get-in data [:display :height]) grid-height)
             default-cell (:default-cell state)]
-        (apply dom/table #js {:className "automaton-grid"}
+        (apply dom/div #js {:className "automaton-grid"}
                (mapv (fn [y]
-                       (apply dom/tr #js {:className "automaton-row row"}
+                       (apply dom/div #js {:className "automaton-row row"}
                               (mapv
                                (fn [x]
                                  (om/build

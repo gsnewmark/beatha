@@ -141,6 +141,39 @@
                             (and (= :lc left) (= :rc state)))
                         {:state :m}
 
+                        (and (= :dead state) (= :m top))
+                        {:state :n}
+
+                        (and (= :dead state) (#{:a :b} top) (= :n right))
+                        {:state :n}
+
+                        (and (= :dead state) (= :a top) (#{:n :ab :bb} left))
+                        {:state :ab}
+
+                        (and (= :dead state) (= :b top) (#{:n :ab :bb} left))
+                        {:state :bb}
+
+                        (and (= :n state) (#{:ab :bb} right))
+                        {:state right}
+
+                        (and (#{:ab :bb} state) (= :n left))
+                        {:state :n}
+
+                        (and (= :a state) (= :x left) (= :ab bottom))
+                        {:state :x}
+
+                        (and (= :b state) (= :x left) (= :bb bottom))
+                        {:state :x}
+
+                        (and (= :a state) (= :x left) (= :bb bottom))
+                        {:state :f}
+
+                        (and (= :b state) (= :x left) (= :ab bottom))
+                        {:state :f}
+
+                        (and (= :m state) (= :x left))
+                        {:state :s}
+
                         :else cell)}))
                   (range width)))
                (range height))

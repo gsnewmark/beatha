@@ -18,6 +18,8 @@
             ["phantomjs" :runner
              "dev-resources/public/js/beatha.js"]}}}
 
+ :tdd [:shared]
+
  :dev [:shared
        {:source-paths ["dev-resources/tools/http" "dev-resources/tools/repl"]
 

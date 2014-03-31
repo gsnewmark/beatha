@@ -16,7 +16,7 @@
                  [com.facebook/react "0.9.0"]
                  [org.webjars/bootstrap "3.1.1"]]
 
-  :plugins [[lein-cljsbuild "1.0.2"]]
+  :plugins [[lein-cljsbuild "1.0.3-SNAPSHOT"]]
 
   :hooks [leiningen.cljsbuild]
 

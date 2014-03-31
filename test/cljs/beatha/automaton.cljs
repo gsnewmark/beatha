@@ -1,11 +1,12 @@
 (ns beatha.automaton-test
-  (:require-macros [cemerick.double-check.clojure-test :refer [defspec]]
-                   [cemerick.double-check.properties :refer [for-all]])
   (:require [cemerick.cljs.test]
             [cemerick.double-check]
+            [cemerick.double-check.clojure-test :include-macros true
+                                                :refer [defspec]]
             [cemerick.double-check.clojure-test.runtime]
             [cemerick.double-check.generators :as gen]
-            [cemerick.double-check.properties :as prop]
+            [cemerick.double-check.properties :include-macros true
+                                              :refer [for-all]]
             [beatha.automaton :as a]))
 
 (defn gen-2d-cell [] (gen/vector gen/int 2))

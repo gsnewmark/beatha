@@ -17,8 +17,17 @@
 
   Intended to work with a two-dimensional grid representation where each cell
   is encoded as pair of it's coordinates in a world."
-  [[x y]]
-  (for [dx [-1 0 1] dy [-1 0 1] :when (not= 0 dx dy)] [(+ x dx) (+ y dy)]))
+  ([[x y]]
+     {:pre [(not (neg? x)) (not (neg? y))]}
+     (for [dx [-1 0 1] dy [-1 0 1] :when (not= 0 dx dy)]
+       [(+ x dx) (+ y dy)]))
+  ([width height coords]
+     {:pre [(pos? width) (pos? height)]}
+     (map (fn [[x y]]
+            (let [x (if (< x 0) (+ width x) x)
+                  y (if (< y 0) (+ height y) y)]
+              [(rem x width) (rem y height)]))
+          (neighbours coords))))
 
 (def default-automata
   (reify
@@ -44,7 +53,7 @@
                   (fn [x]
                     (let [get-cell (fn [coords]
                                      (get cells coords (default-cell this)))
-                          n (->> (neighbours [x y])
+                          n (->> (neighbours width height [x y])
                                  (map get-cell)
                                  (filter #(= (:state %) :alive))
                                  count)
@@ -81,7 +90,7 @@
                   (fn [x]
                     (let [get-cell (fn [coords]
                                      (get cells coords (default-cell this)))
-                          n-states (->> (neighbours [x y])
+                          n-states (->> (neighbours width height [x y])
                                        (map (comp :state get-cell))
                                        (interleave [:top-left :left
                                                     :bottom-left :top

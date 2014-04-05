@@ -9,8 +9,7 @@
 
 (def app-state (atom {:grid {:width 10 :height 10 :cells {}}
                       :display {:width 600 :height 600}
-                      :started false
-                      :result :none}))
+                      :started false}))
 
 
 (defn cell-view
@@ -122,129 +121,165 @@
           "Reset display"))))))
 
 
+(defprotocol CellularAutomatonAppCustomization
+  (automaton-output-handler [this data owner o]
+    "Handles messages posted by the cellular automaton.")
+  (automaton-output-view [this]
+    "Generates Om component that renders any changes produced by
+    the handler.")
+  (automaton-output-reset [this data owner]
+    "Resets changes produced by the handler."))
+
 (defn gen-app-view
-  [automaton-spec]
-  (fn [data owner]
-    (reify
-      om/IInitState
-      (init-state [_]
-        {:change-grid-dimensions (chan)
-         :change-display-dimensions (chan)
-         :cell-state-changed (chan)
-         :started (chan)
-         :output-info-channel (chan)})
-      om/IWillMount
-      (will-mount [_]
-        (let [grid-c (om/get-state owner :change-grid-dimensions)
-              display-c (om/get-state owner :change-display-dimensions)
-              cell-state-c (om/get-state owner :cell-state-changed)
-              started-c (om/get-state owner :started)
-              output-info-c (om/get-state owner :output-info-channel)]
-          (go (while true
-                (alt!
-                  grid-c
-                  ([[width height]]
-                     (om/transact! data (fn [d] (assoc d :result :none)))
-                     (om/transact!
-                      data :grid
-                      (fn [grid]
-                        (assoc grid :width width :height height :cells {}))))
+  ([automaton-spec]
+     (gen-app-view automaton-spec
+                   (reify
+                     CellularAutomatonAppCustomization
+                     (automaton-output-handler [_ _ _ _])
+                     (automaton-output-view [_]
+                       (fn [data owner]
+                         (reify om/IRender (render [_] (dom/span nil "")))))
+                     (automaton-output-reset [_ _ _]))))
+  ([automaton-spec customization]
+     (fn [data owner]
+       (reify
+         om/IInitState
+         (init-state [_]
+           {:change-grid-dimensions (chan)
+            :change-display-dimensions (chan)
+            :cell-state-changed (chan)
+            :started (chan)
+            :output-info-channel (chan)})
+         om/IWillMount
+         (will-mount [_]
+           (let [grid-c (om/get-state owner :change-grid-dimensions)
+                 display-c (om/get-state owner :change-display-dimensions)
+                 cell-state-c (om/get-state owner :cell-state-changed)
+                 started-c (om/get-state owner :started)
+                 output-info-c (om/get-state owner :output-info-channel)]
+             (go (while true
+                   (alt!
+                     grid-c
+                     ([[width height]]
+                        (automaton-output-reset customization data owner)
+                        (om/transact!
+                         data :grid
+                         (fn [grid]
+                           (assoc grid
+                             :width width :height height :cells {}))))
 
-                  display-c
-                  ([[width height]]
-                     (om/transact!
-                      data :display
-                      (fn [display]
-                        (assoc display :width width :height height))))
+                     display-c
+                     ([[width height]]
+                        (om/transact!
+                         data :display
+                         (fn [display]
+                           (assoc display :width width :height height))))
 
-                  cell-state-c
-                  ([[x y]]
-                     (om/transact!
-                      data [:grid :cells]
-                      (fn [grid]
-                        (let [cell (get grid [x y]
-                                        (a/default-cell automaton-spec))
-                              state (:state cell)
-                              cell (assoc cell
-                                     :state
-                                     (a/next-initial-state automaton-spec
-                                                           state))]
-                          (assoc grid [x y] cell)))))
+                     cell-state-c
+                     ([[x y]]
+                        (om/transact!
+                         data [:grid :cells]
+                         (fn [grid]
+                           (let [cell (get grid [x y]
+                                           (a/default-cell automaton-spec))
+                                 state (:state cell)
+                                 cell (assoc cell
+                                        :state
+                                        (a/next-initial-state automaton-spec
+                                                              state))]
+                             (assoc grid [x y] cell)))))
 
-                  started-c
-                  ([started]
-                     (om/update! data :started started)
-                     (if started
-                       (om/set-state!
-                        owner :update-loop-id
-                        (js/setInterval
-                         (fn []
-                           (om/transact! data :grid
-                                         (partial a/next-grid automaton-spec))
-                           (a/fill-output-info-channel
-                            automaton-spec (:grid @data) output-info-c))
-                         (or (om/get-state owner :animation-step) 1000)))
-                       (when-let [id (om/get-state owner :update-loop-id)]
-                         (js/clearTimeout id))))
+                     started-c
+                     ([started]
+                        (om/update! data :started started)
+                        (if started
+                          (om/set-state!
+                           owner :update-loop-id
+                           (js/setInterval
+                            (fn []
+                              (om/transact!
+                               data :grid
+                               (partial a/next-grid automaton-spec))
+                              (a/fill-output-info-channel
+                               automaton-spec (:grid @data) output-info-c))
+                            (or (om/get-state owner :animation-step) 1000)))
+                          (when-let [id (om/get-state owner :update-loop-id)]
+                            (js/clearTimeout id))))
 
-                  output-info-c
-                  ([{:keys [s f]}]
-                     (when (or (> s 0) (> f 0))
-                       (om/transact!
-                        data
-                        (fn [d] (assoc d :result
-                                      (if (> s 0) :success :failure))))
-                       (put! started-c false))))))))
-      om/IRenderState
-      (render-state [_ state]
-        (dom/div
-         #js {:className "container-liquid"}
-         (dom/div
-          #js {:className "row"}
-          (dom/div
-           #js {:className "col-sm-2"}
-           (let [started (:started data)]
+                     output-info-c
+                     ([o] (automaton-output-handler
+                           customization data owner o)))))))
+         om/IRenderState
+         (render-state [_ state]
+           (dom/div
+            #js {:className "container-liquid"}
+            (dom/div
+             #js {:className "row"}
              (dom/div
-              #js {:className "row"}
-              (dom/button
-               #js {:type "button"
-                    :className "btn btn-primary btn-lg btn-block"
-                    :onClick #(put! (:started state) (not started))}
-               (if-not started "Start" "Stop"))))
-           (dom/div
-            #js {:className "row"}
-            (om/build grid-config-view
-                      data
-                      {:init-state
-                       (merge state
-                              {:width (get-in data [:grid :width])
-                               :height (get-in data [:grid :height])})}))
-           (dom/div
-            #js {:className "row"}
-            (om/build display-config-view
-                      data
-                      {:init-state
-                       (merge state
-                              {:width (get-in data [:display :width])
-                               :height (get-in data [:display :height])})})))
-          (dom/div #js {:className "col-sm-10"}
-                   (when (#{:success :failure} (:result data))
-                     (dom/div #js {:className "row"}
-                              (dom/label nil
-                                         "Result: "
-                                         (if (= :success (:result data))
-                                           "word is parsed"
-                                           "word is not parsed"))))
-                   (dom/div #js {:slassName "row"})
-                   (om/build grid-view
-                             data
-                             {:init-state
-                              (assoc state
-                                :default-cell
-                                (a/default-cell automaton-spec))}))))))))
+              #js {:className "col-sm-2"}
+              (let [started (:started data)]
+                (dom/div
+                 #js {:className "row"}
+                 (dom/button
+                  #js {:type "button"
+                       :className "btn btn-primary btn-lg btn-block"
+                       :onClick #(put! (:started state) (not started))}
+                  (if-not started "Start" "Stop"))))
+              (dom/div
+               #js {:className "row"}
+               (om/build grid-config-view
+                         data
+                         {:init-state
+                          (merge state
+                                 {:width (get-in data [:grid :width])
+                                  :height (get-in data [:grid :height])})}))
+              (dom/div
+               #js {:className "row"}
+               (om/build display-config-view
+                         data
+                         {:init-state
+                          (assoc state
+                            :width (get-in data [:display :width])
+                            :height (get-in data [:display :height]))}))
+              (dom/div #js {:className "row"}
+                       (om/build (automaton-output-view customization) data)))
+             (dom/div #js {:className "col-sm-10"}
+                      (dom/div #js {:className "row"})
+                      (om/build grid-view
+                                data
+                                {:init-state
+                                 (assoc state
+                                   :default-cell
+                                   (a/default-cell automaton-spec))})))))))))
 
 
-(om/root (gen-app-view a/unrestricted-language-parser)
-         app-state
-         {:target (. js/document (getElementById "app"))
-          :init-state {:animation-step 750}})
+(def unrestricted-language-parser-customization
+  (reify
+    CellularAutomatonAppCustomization
+    (automaton-output-handler [_ data owner {:keys [s f]}]
+      (when (or (> s 0) (> f 0))
+        (om/transact!
+         data (fn [d] (assoc d :result (if (> s 0) :success :failure))))
+        (put! (om/get-state owner :started) false)))
+    (automaton-output-view [_]
+      (fn [data _]
+        (reify
+          om/IRender
+          (render [_]
+            (dom/div #js {:className "row"
+                          :hidden (not (#{:success :failure} (:result data)))}
+                     (dom/h2 nil
+                             "Result: "
+                             (if (= :success (:result data))
+                               "word is parsed"
+                               "word is not parsed")))))))
+    (automaton-output-reset [_ data _]
+      (om/transact! data (fn [d] (assoc d :result :none))))))
+
+
+(om/root
+ (gen-app-view
+  a/unrestricted-language-parser unrestricted-language-parser-customization)
+ app-state
+ {:target (. js/document (getElementById "app"))
+  :init-state {:animation-step 750}})

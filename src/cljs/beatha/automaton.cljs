@@ -1,4 +1,5 @@
-(ns beatha.automaton)
+(ns beatha.automaton
+  (:require [cljs.core.async :refer [put!]]))
 
 (defprotocol AutomatonSpecification
   "Describes basic interactions with particular set of cellular automata
@@ -8,6 +9,19 @@
     "Returns next possible initial state after the given one.")
   (next-grid [this grid]
     "Transforms given grid according to automata's rules."))
+
+(defprotocol InformationChannelsSpecification
+  "Describes interactions with information channels which augment the regular
+  cellular automata:
+
+    - input channel is a source of external commands which augment rules of
+      automata;
+    - output channel is filled by the automata itself with aggregate
+      information about current state."
+  (process-info-channel [this ic]
+    "Handles messages from the input information channel.")
+  (fill-output-info-channel [this grid oc]
+    "Sends a message about the current automata's state."))
 
 ;;; State of world is described as a set of living cells, where each cell is
 ;;; vector of coordinates [x y].
@@ -36,7 +50,11 @@
     (next-initial-state
       [_ state]
       ({:dead :alive :alive :speaking :speaking :dead} state))
-    (next-grid [_ grid] grid)))
+    (next-grid [_ grid] grid)
+
+    InformationChannelsSpecification
+    (process-info-channel [this ic])
+    (fill-output-info-channel [this grid oc])))
 
 (def game-of-life
   (reify
@@ -71,7 +89,11 @@
              (remove #(let [[cell] (vals %)] (nil? cell)))
              (remove #(let [[cell] (vals %)] (= (:state cell) :dead)))
              (reduce merge {})
-             (assoc grid :cells))))))
+             (assoc grid :cells))))
+
+    InformationChannelsSpecification
+    (process-info-channel [this ic])
+    (fill-output-info-channel [this grid oc])))
 
 (def unrestricted-language-parser
   "Cell automaton that is able to detect whether the given word belongs to the
@@ -189,4 +211,17 @@
              (remove #(let [[cell] (vals %)] (nil? cell)))
              (remove #(let [[cell] (vals %)] (= (:state cell) :dead)))
              (reduce merge {})
-             (assoc grid :cells))))))
+             (assoc grid :cells))))
+
+    InformationChannelsSpecification
+    (process-info-channel [this ic])
+    (fill-output-info-channel [this grid oc]
+      (put! oc
+            (->> grid
+                 :cells
+                 vals
+                 (group-by :state)
+                 (#(select-keys % [:s :f]))
+                 (map (fn [[k v]] [k (count v)]))
+                 (into {})
+                 (merge {:s 0 :f 0}))))))

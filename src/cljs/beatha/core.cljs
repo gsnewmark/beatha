@@ -1,4 +1,4 @@
-(ns beatha.core.core
+(ns beatha.core
   (:require-macros [cljs.core.async.macros :refer [go alt!]])
   (:require [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
@@ -9,7 +9,8 @@
 
 (def app-state (atom {:grid {:width 10 :height 10 :cells {}}
                       :display {:width 600 :height 600}
-                      :started false}))
+                      :started false
+                      :result :none}))
 
 
 (defn cell-view
@@ -130,17 +131,20 @@
         {:change-grid-dimensions (chan)
          :change-display-dimensions (chan)
          :cell-state-changed (chan)
-         :started (chan)})
+         :started (chan)
+         :output-info-channel (chan)})
       om/IWillMount
       (will-mount [_]
         (let [grid-c (om/get-state owner :change-grid-dimensions)
               display-c (om/get-state owner :change-display-dimensions)
               cell-state-c (om/get-state owner :cell-state-changed)
-              started-c (om/get-state owner :started)]
+              started-c (om/get-state owner :started)
+              output-info-c (om/get-state owner :output-info-channel)]
           (go (while true
                 (alt!
                   grid-c
                   ([[width height]]
+                     (om/transact! data (fn [d] (assoc d :result :none)))
                      (om/transact!
                       data :grid
                       (fn [grid]
@@ -174,12 +178,23 @@
                        (om/set-state!
                         owner :update-loop-id
                         (js/setInterval
-                         (fn [] (om/transact!
-                                data :grid
-                                (partial a/next-grid automaton-spec)))
+                         (fn []
+                           (om/transact! data :grid
+                                         (partial a/next-grid automaton-spec))
+                           (a/fill-output-info-channel
+                            automaton-spec (:grid @data) output-info-c))
                          (or (om/get-state owner :animation-step) 1000)))
                        (when-let [id (om/get-state owner :update-loop-id)]
-                         (js/clearTimeout id)))))))))
+                         (js/clearTimeout id))))
+
+                  output-info-c
+                  ([{:keys [s f]}]
+                     (when (or (> s 0) (> f 0))
+                       (om/transact!
+                        data
+                        (fn [d] (assoc d :result
+                                      (if (> s 0) :success :failure))))
+                       (put! started-c false))))))))
       om/IRenderState
       (render-state [_ state]
         (dom/div
@@ -213,6 +228,14 @@
                               {:width (get-in data [:display :width])
                                :height (get-in data [:display :height])})})))
           (dom/div #js {:className "col-sm-10"}
+                   (when (#{:success :failure} (:result data))
+                     (dom/div #js {:className "row"}
+                              (dom/label nil
+                                         "Result: "
+                                         (if (= :success (:result data))
+                                           "word is parsed"
+                                           "word is not parsed"))))
+                   (dom/div #js {:slassName "row"})
                    (om/build grid-view
                              data
                              {:init-state

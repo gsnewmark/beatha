@@ -52,14 +52,6 @@
     background-color: #073642;
 }
 
-.automaton-cell.ab {
-    background-color: #859900;
-}
-
-.automaton-cell.bb {
-    background-color: #6c71c4;
-}
-
 .automaton-cell.s {
     background-color: #268bd2;
 }

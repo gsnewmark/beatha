@@ -282,4 +282,4 @@
   a/unrestricted-language-parser unrestricted-language-parser-customization)
  app-state
  {:target (. js/document (getElementById "app"))
-  :init-state {:animation-step 750}})
+  :init-state {:animation-step 500}})

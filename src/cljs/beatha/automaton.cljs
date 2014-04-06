@@ -122,90 +122,46 @@
                           {:keys [top-left top top-right left right
                                   bottom-left bottom bottom-right]} n-states
                           cell (get-cell [x y])
-                          state (:state cell)
-                          all-dead-except
-                          (fn [chosen-n chosen-states]
-                            (and
-                             (chosen-states (chosen-n n-states))
-                             (every? #{:dead}
-                                     (vals (dissoc n-states chosen-n)))))
+                          s (:state cell)
+                          letter? #{:a :b}
+                          dead? #(= :dead %)
+                          alive-only
+                          (fn [dir pred]
+                            (and (pred (dir n-states))
+                                 (every? dead? (vals (dissoc n-states dir)))))
 
                           between-l-r
                           (fn [left-states right-states]
                             (and (left-states (:left n-states))
                                  (right-states (:right n-states))))]
                       {[x y]
-                       (cond
-                        (and (= :dead state)
-                             (all-dead-except :right #{:a :b}))
-                        {:state :lc}
-
-                        (and (= :dead state)
-                             (all-dead-except :left #{:a :b}))
-                        {:state :rc}
-
-                        (and (= :dead state)
-                             (or (all-dead-except :right #{:lc})
-                                 (all-dead-except :left #{:rc})))
-                        {:state :x}
-
-                        (and (= :lc state)
-                             (between-l-r #{:x :a :b :dead} #{:a :b}))
-                        {:state right}
-
-                        (and (= :rc state)
-                             (between-l-r #{:a :b} #{:x :a :b :dead}))
-                        {:state left}
-
-                        (and (#{:a :b} state)
-                             (between-l-r #{:lc} #{:a :b}))
-                        {:state :lc}
-
-                        (and (#{:a :b} state)
-                             (between-l-r #{:a :b} #{:rc}))
-                        {:state :rc}
-
-                        (between-l-r #{:lc} #{:rc})
-                        {:state :f}
-
-                        (or (and (= :lc state) (= :rc right))
-                            (and (= :lc left) (= :rc state)))
-                        {:state :m}
-
-                        (and (= :dead state) (= :m top))
-                        {:state :n}
-
-                        (and (= :dead state) (#{:a :b} top) (= :n right))
-                        {:state :n}
-
-                        (and (= :dead state) (= :a top) (#{:n :ab :bb} left))
-                        {:state :ab}
-
-                        (and (= :dead state) (= :b top) (#{:n :ab :bb} left))
-                        {:state :bb}
-
-                        (and (= :n state) (#{:ab :bb} right))
-                        {:state right}
-
-                        (and (#{:ab :bb} state) (= :n left))
-                        {:state :n}
-
-                        (and (= :a state) (= :x left) (= :ab bottom))
-                        {:state :x}
-
-                        (and (= :b state) (= :x left) (= :bb bottom))
-                        {:state :x}
-
-                        (and (= :a state) (= :x left) (= :bb bottom))
-                        {:state :f}
-
-                        (and (= :b state) (= :x left) (= :ab bottom))
-                        {:state :f}
-
-                        (and (= :m state) (= :x left))
-                        {:state :s}
-
-                        :else cell)}))
+                       {:state
+                        (cond
+                         (and (dead? s) (alive-only :right letter?))    :lc
+                         (and (dead? s) (alive-only :left letter?))     :rc
+                         (and (dead? s)
+                              (or (alive-only :right #{:lc})
+                                  (alive-only :left #{:rc})))           :x
+                         (and (= :lc s)
+                              (between-l-r #{:x :a :b :dead} letter?))  right
+                         (and (= :rc s)
+                              (between-l-r letter? #{:x :a :b :dead}))  left
+                         (and (letter? s) (between-l-r #{:lc} letter?)) :lc
+                         (and (letter? s) (between-l-r letter? #{:rc})) :rc
+                         (between-l-r #{:lc} #{:rc})                    :f
+                         (or (and (= :lc s) (= :rc right))
+                             (and (= :lc left) (= :rc s)))              :m
+                         (and (dead? s) (= :m top))                     :n
+                         (and (dead? s) (letter? top) (= :n right))     :n
+                         (and (dead? s) (letter? top)
+                              (#{:n :a :b} left))                       top
+                         (and (= :n s) (letter? right))                 right
+                         (and (letter? s) (= :n left))                  :n
+                         (and (letter? s) (= :x left) (= s bottom))     :x
+                         (and (letter? s) (= :x left)
+                              (letter? bottom) (not (= s bottom)))      :f
+                         (and (= :m s) (= :x left))                     :s
+                         :else                                          s)}}))
                   (range width)))
                (range height))
              (remove #(let [[cell] (vals %)] (nil? cell)))

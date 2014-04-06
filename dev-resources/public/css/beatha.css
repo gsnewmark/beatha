@@ -28,6 +28,10 @@
     background-color: #6c71c4;
 }
 
+.automaton-cell.w {
+    background-color: #d33682;
+}
+
 .automaton-cell.lc {
     background-color: #b58900;
 }

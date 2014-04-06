@@ -1,5 +1,6 @@
 (ns beatha.automaton
-  (:require [cljs.core.async :refer [put!]]))
+  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require [cljs.core.async :refer [put! <!]]))
 
 (defprotocol AutomatonSpecification
   "Describes basic interactions with particular set of cellular automata
@@ -102,75 +103,79 @@
 (def unrestricted-language-parser
   "Cell automaton that is able to detect whether the given word belongs to the
   unrestricted language L = { ww : w є {a, b}* }."
-  (reify
-    AutomatonSpecification
-    (default-cell [_] {:state :dead})
-    (next-initial-state
-      [_ state]
-      ({:dead :a :a :b :b :dead} state))
-    (next-grid [this grid]
-      (transition
-       this grid
-       (fn [this width height cells x y]
-         (let [get-cell (fn [coords] (get cells coords (default-cell this)))
-               n-states (->> (neighbours width height [x y])
-                             (map (comp :state get-cell))
-                             (interleave [:top-left :left :bottom-left
-                                          :top :bottom :top-right
-                                          :right :bottom-right])
-                                       (apply hash-map))
-               {:keys [top-left top top-right left right
-                       bottom-left bottom bottom-right]} n-states
-               cell (get-cell [x y])
-               s (:state cell)
-               letter? #{:a :b}
-               dead? #(= :dead %)
-               alive-only
-               (fn [dir pred]
-                 (and (pred (dir n-states))
-                      (every? dead? (vals (dissoc n-states dir)))))
+  (let [ext-command (atom {})]
+    (reify
+      AutomatonSpecification
+      (default-cell [_] {:state :dead})
+      (next-initial-state
+        [_ state]
+        (let [transitions (-> {:dead :a :a :b :b :dead}
+                              (merge (get @ext-command :initial-states {})))]
+          (transitions state)))
+      (next-grid [this grid]
+        (transition
+         this grid
+         (fn [this width height cells x y]
+           (let [get-cell (fn [coords] (get cells coords (default-cell this)))
+                 n-states (->> (neighbours width height [x y])
+                               (map (comp :state get-cell))
+                               (interleave [:top-left :left :bottom-left
+                                            :top :bottom :top-right
+                                            :right :bottom-right])
+                               (apply hash-map))
+                 {:keys [top-left top top-right left right
+                         bottom-left bottom bottom-right]} n-states
+                 cell (get-cell [x y])
+                 s (:state cell)
+                 letter? #{:a :b}
+                 dead? #(= :dead %)
+                 alive-only
+                 (fn [dir pred]
+                   (and (pred (dir n-states))
+                        (every? dead? (vals (dissoc n-states dir)))))
 
-               between-l-r
-               (fn [left-states right-states]
-                 (and (left-states (:left n-states))
-                      (right-states (:right n-states))))]
-           {[x y]
-            {:state
-             (cond
-              (and (dead? s) (alive-only :right letter?))    :lc
-              (and (dead? s) (alive-only :left letter?))     :rc
-              (and (dead? s)
-                   (or (alive-only :right #{:lc})
-                       (alive-only :left #{:rc})))           :x
-              (and (= :lc s)
-                   (between-l-r #{:x :a :b :dead} letter?))  right
-              (and (= :rc s)
-                   (between-l-r letter? #{:x :a :b :dead}))  left
-              (and (letter? s) (between-l-r #{:lc} letter?)) :lc
-              (and (letter? s) (between-l-r letter? #{:rc})) :rc
-              (between-l-r #{:lc} #{:rc})                    :f
-              (or (and (= :lc s) (= :rc right))
-                  (and (= :lc left) (= :rc s)))              :m
-              (and (dead? s) (= :m top))                     :n
-              (and (dead? s) (letter? top) (= :n right))     :n
-              (and (dead? s) (letter? top)
-                   (#{:n :a :b} left))                       top
-              (and (= :n s) (letter? right))                 right
-              (and (letter? s) (= :n left))                  :n
-              (and (letter? s) (= :x left) (= s bottom))     :x
-              (and (letter? s) (= :x left)
-                   (letter? bottom) (not (= s bottom)))      :f
-              (and (= :m s) (= :x left))                     :s
-              :else                                          s)}}))))
+                 between-l-r
+                 (fn [left-states right-states]
+                   (and (left-states (:left n-states))
+                        (right-states (:right n-states))))]
+             {[x y]
+              {:state
+               (cond
+                (and (dead? s) (alive-only :right letter?))    :lc
+                (and (dead? s) (alive-only :left letter?))     :rc
+                (and (dead? s)
+                     (or (alive-only :right #{:lc})
+                         (alive-only :left #{:rc})))           :x
+                (and (= :lc s)
+                     (between-l-r #{:x :a :b :dead} letter?))  right
+                (and (= :rc s)
+                     (between-l-r letter? #{:x :a :b :dead}))  left
+                (and (letter? s) (between-l-r #{:lc} letter?)) :lc
+                (and (letter? s) (between-l-r letter? #{:rc})) :rc
+                (between-l-r #{:lc} #{:rc})                    :f
+                (or (and (= :lc s) (= :rc right))
+                    (and (= :lc left) (= :rc s)))              :m
+                (and (dead? s) (= :m top))                     :n
+                (and (dead? s) (letter? top) (= :n right))     :n
+                (and (dead? s) (letter? top)
+                     (#{:n :a :b} left))                       top
+                (and (= :n s) (letter? right))                 right
+                (and (letter? s) (= :n left))                  :n
+                (and (letter? s) (= :x left) (= s bottom))     :x
+                (and (letter? s) (= :x left)
+                     (letter? bottom) (not (= s bottom)))      :f
+                (and (= :m s) (= :x left))                     :s
+                :else                                          s)}}))))
 
-    InformationChannelsSpecification
-    (process-info-channel [this ic])
-    (fill-output-info-channel [this grid oc]
-      (put! oc (->> grid
-                    :cells
-                    vals
-                    (group-by :state)
-                    (#(select-keys % [:s :f]))
-                    (map (fn [[k v]] [k (count v)]))
-                    (into {})
-                    (merge {:s 0 :f 0}))))))
+      InformationChannelsSpecification
+      (process-info-channel [this ic]
+        (go (while true (let [c (<! ic)] (swap! ext-command merge c)))))
+      (fill-output-info-channel [this grid oc]
+        (put! oc (->> grid
+                      :cells
+                      vals
+                      (group-by :state)
+                      (#(select-keys % [:s :f]))
+                      (map (fn [[k v]] [k (count v)]))
+                      (into {})
+                      (merge {:s 0 :f 0})))))))

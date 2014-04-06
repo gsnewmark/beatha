@@ -122,6 +122,11 @@
 
 
 (defprotocol CellularAutomatonAppCustomization
+  (automaton-input-view [this]
+    "Generates Om component that renders block for sending commands to
+    automaton.")
+  (automaton-input-reset [this input-info-channel]
+    "Resets any changes created by the command sent to the automata.")
   (automaton-output-handler [this data owner o]
     "Handles messages posted by the cellular automaton.")
   (automaton-output-view [this]
@@ -130,15 +135,18 @@
   (automaton-output-reset [this data owner]
     "Resets changes produced by the handler."))
 
+(def ^:private empty-view
+  (fn [data owner] (reify om/IRender (render [_] (dom/span nil "")))))
+
 (defn gen-app-view
   ([automaton-spec]
      (gen-app-view automaton-spec
                    (reify
                      CellularAutomatonAppCustomization
+                     (automaton-input-view [_] empty-view)
+                     (automaton-input-reset [_ _])
                      (automaton-output-handler [_ _ _ _])
-                     (automaton-output-view [_]
-                       (fn [data owner]
-                         (reify om/IRender (render [_] (dom/span nil "")))))
+                     (automaton-output-view [_] empty-view)
                      (automaton-output-reset [_ _ _]))))
   ([automaton-spec customization]
      (fn [data owner]
@@ -149,18 +157,22 @@
             :change-display-dimensions (chan)
             :cell-state-changed (chan)
             :started (chan)
-            :output-info-channel (chan)})
+            :output-info-channel (chan)
+            :input-info-channel (chan)})
          om/IWillMount
          (will-mount [_]
            (let [grid-c (om/get-state owner :change-grid-dimensions)
                  display-c (om/get-state owner :change-display-dimensions)
                  cell-state-c (om/get-state owner :cell-state-changed)
                  started-c (om/get-state owner :started)
-                 output-info-c (om/get-state owner :output-info-channel)]
+                 output-info-c (om/get-state owner :output-info-channel)
+                 input-info-c (om/get-state owner :input-info-channel)]
+             (a/process-info-channel automaton-spec input-info-c)
              (go (while true
                    (alt!
                      grid-c
                      ([[width height]]
+                        (automaton-input-reset customization input-info-c)
                         (automaton-output-reset customization data owner)
                         (om/transact!
                          data :grid
@@ -225,6 +237,14 @@
                        :className "btn btn-primary btn-lg btn-block"
                        :onClick #(put! (:started state) (not started))}
                   (if-not started "Start" "Stop"))))
+              (dom/div #js {:className "row"}
+                       (om/build (automaton-output-view customization) data))
+              (dom/div #js {:className "row"}
+                       (om/build
+                        (automaton-input-view customization)
+                        data
+                        {:init-state
+                         (select-keys state [:input-info-channel])}))
               (dom/div
                #js {:className "row"}
                (om/build grid-config-view
@@ -240,9 +260,7 @@
                          {:init-state
                           (assoc state
                             :width (get-in data [:display :width])
-                            :height (get-in data [:display :height]))}))
-              (dom/div #js {:className "row"}
-                       (om/build (automaton-output-view customization) data)))
+                            :height (get-in data [:display :height]))})))
              (dom/div #js {:className "col-sm-10"}
                       (dom/div #js {:className "row"})
                       (om/build grid-view
@@ -253,9 +271,24 @@
                                    (a/default-cell automaton-spec))})))))))))
 
 
-(def unrestricted-language-parser-customization
+(defn unrestricted-language-parser-customization
+  [command-fn]
   (reify
     CellularAutomatonAppCustomization
+    (automaton-input-view [_]
+      (fn [data _]
+        (reify
+          om/IRenderState
+          (render-state [_ state]
+            (let [c (:input-info-channel state)]
+              (dom/button
+               #js {:type "button"
+                    :className "btn btn-success btn-lg btn-block"
+                    :onClick #(command-fn c)}
+               "Send command"))))))
+    (automaton-input-reset [_ input-channel]
+      (put! input-channel {:initial-states {}}))
+    (automaton-input-reset [_])
     (automaton-output-handler [_ data owner {:keys [s f]}]
       (when (or (> s 0) (> f 0))
         (om/transact!
@@ -279,7 +312,9 @@
 
 (om/root
  (gen-app-view
-  a/unrestricted-language-parser unrestricted-language-parser-customization)
+  a/unrestricted-language-parser
+  (unrestricted-language-parser-customization
+   (fn [c] (put! c {:initial-states {:b :w :w :dead}}))))
  app-state
  {:target (. js/document (getElementById "app"))
   :init-state {:animation-step 500}})

@@ -107,7 +107,8 @@
     (reify
       AutomatonSpecification
       (default-cell [_] {:state :dead})
-      (next-initial-state [_ state] ({:dead :a :a :b :b :dead} state))
+      (next-initial-state [_ state]
+        (or ({:dead :a :a :b :b :dead} state) :dead))
       (next-grid [this grid]
         (transition
          this grid

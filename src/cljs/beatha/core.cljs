@@ -239,6 +239,7 @@
                   (if-not started "Start" "Stop"))))
               (dom/div #js {:className "row"}
                        (om/build (automaton-output-view customization) data))
+              (dom/hr nil)
               (dom/div #js {:className "row"}
                        (om/build
                         (automaton-input-view customization)
@@ -253,6 +254,7 @@
                           (merge state
                                  {:width (get-in data [:grid :width])
                                   :height (get-in data [:grid :height])})}))
+              (dom/hr nil)
               (dom/div
                #js {:className "row"}
                (om/build display-config-view
@@ -274,36 +276,65 @@
 (def unrestricted-language-parser-customization
   (reify
     CellularAutomatonAppCustomization
-    (automaton-input-view [_]
+    (automaton-input-view [this]
       (fn [data owner]
         (reify
           om/IRenderState
           (render-state [_ state]
             (let [c (:input-info-channel state)
-                  b-wildcard-fn
-                  (fn [neighbour-states cell]
+                  a-wildcard (get-in data [:command :a-wildcard])
+                  b-wildcard (get-in data [:command :b-wildcard])
+
+                  wildcard-fn
+                  (fn [wildcard neighbour-states cell]
                     (let [{:keys [top-left top top-right left right
                                   bottom-left bottom bottom-right]}
                           neighbour-states]
                       (if (and (#{:a :b} (:state cell)) (= :x left)
-                               (= :b bottom))
-                        {:state :s}
+                               (= wildcard bottom))
+                        {:state :x}
                         false)))
-                  b-wildcard (get-in data [:command :b-wildcard])]
+                  a-wildcard-fn (partial wildcard-fn :a)
+                  b-wildcard-fn (partial wildcard-fn :b)]
               (dom/div nil
+               (dom/label nil "a as a wildcard")
+               (dom/input
+                #js {:type "checkbox"
+                     :checked a-wildcard
+                     :onClick
+                     (fn [] (om/transact! data [:command :a-wildcard] not))})
                (dom/label nil "b as a wildcard")
-               (dom/input #js {:type "checkbox"
-                               :checked b-wildcard
-                               :onClick
-                               (fn []
-                                 (om/transact!
-                                  data [:command :b-wildcard] not))})
+               (dom/input
+                #js {:type "checkbox"
+                     :checked b-wildcard
+                     :onClick
+                     (fn [] (om/transact! data [:command :b-wildcard] not))})
                (dom/button
                 #js {:type "button"
                      :className "btn btn-success btn-lg btn-block"
                      :onClick
-                     #(if b-wildcard (put! c {:command b-wildcard-fn}))}
-                "Send command")))))))
+                     #(cond
+                       (and b-wildcard (not a-wildcard))
+                       (put! c {:command b-wildcard-fn})
+
+                       (and a-wildcard (not b-wildcard))
+                       (put! c {:command a-wildcard-fn})
+
+                       (and a-wildcard b-wildcard)
+                       (put! c {:command
+                                (fn [neigbours s]
+                                  (if-let [a-res (a-wildcard-fn neigbours s)]
+                                    a-res
+                                    (b-wildcard-fn neigbours s)))})
+
+                       :else (fn [_ _] false))}
+                "Send command")
+               (dom/button
+                #js {:type "button"
+                     :className "btn btn-info btn-lg btn-block"
+                     :onClick #(automaton-input-reset this c)}
+                "Reset command")
+               (dom/hr nil)))))))
     (automaton-input-reset [_ input-channel] (put! input-channel {}))
     (automaton-output-handler [_ data owner {:keys [s f]}]
       (when (or (> s 0) (> f 0))

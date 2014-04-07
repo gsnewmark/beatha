@@ -271,24 +271,40 @@
                                    (a/default-cell automaton-spec))})))))))))
 
 
-(defn unrestricted-language-parser-customization
-  [command-fn]
+(def unrestricted-language-parser-customization
   (reify
     CellularAutomatonAppCustomization
     (automaton-input-view [_]
-      (fn [data _]
+      (fn [data owner]
         (reify
           om/IRenderState
           (render-state [_ state]
-            (let [c (:input-info-channel state)]
-              (dom/button
-               #js {:type "button"
-                    :className "btn btn-success btn-lg btn-block"
-                    :onClick #(command-fn c)}
-               "Send command"))))))
-    (automaton-input-reset [_ input-channel]
-      (put! input-channel {:initial-states {}}))
-    (automaton-input-reset [_])
+            (let [c (:input-info-channel state)
+                  b-wildcard-fn
+                  (fn [neighbour-states cell]
+                    (let [{:keys [top-left top top-right left right
+                                  bottom-left bottom bottom-right]}
+                          neighbour-states]
+                      (if (and (#{:a :b} (:state cell)) (= :x left)
+                               (= :b bottom))
+                        {:state :s}
+                        false)))
+                  b-wildcard (get-in data [:command :b-wildcard])]
+              (dom/div nil
+               (dom/label nil "b as a wildcard")
+               (dom/input #js {:type "checkbox"
+                               :checked b-wildcard
+                               :onClick
+                               (fn []
+                                 (om/transact!
+                                  data [:command :b-wildcard] not))})
+               (dom/button
+                #js {:type "button"
+                     :className "btn btn-success btn-lg btn-block"
+                     :onClick
+                     #(if b-wildcard (put! c {:command b-wildcard-fn}))}
+                "Send command")))))))
+    (automaton-input-reset [_ input-channel] (put! input-channel {}))
     (automaton-output-handler [_ data owner {:keys [s f]}]
       (when (or (> s 0) (> f 0))
         (om/transact!
@@ -312,9 +328,7 @@
 
 (om/root
  (gen-app-view
-  a/unrestricted-language-parser
-  (unrestricted-language-parser-customization
-   (fn [c] (put! c {:initial-states {:b :w :w :dead}}))))
+  a/unrestricted-language-parser unrestricted-language-parser-customization)
  app-state
  {:target (. js/document (getElementById "app"))
   :init-state {:animation-step 500}})

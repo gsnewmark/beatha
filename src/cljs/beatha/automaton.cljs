@@ -107,11 +107,7 @@
     (reify
       AutomatonSpecification
       (default-cell [_] {:state :dead})
-      (next-initial-state
-        [_ state]
-        (let [transitions (-> {:dead :a :a :b :b :dead}
-                              (merge (get @ext-command :initial-states {})))]
-          (transitions state)))
+      (next-initial-state [_ state] ({:dead :a :a :b :b :dead} state))
       (next-grid [this grid]
         (transition
          this grid
@@ -137,39 +133,43 @@
                  between-l-r
                  (fn [left-states right-states]
                    (and (left-states (:left n-states))
-                        (right-states (:right n-states))))]
+                        (right-states (:right n-states))))
+
+                 command (get @ext-command :command (fn [_ _] false))]
+
              {[x y]
-              {:state
-               (cond
-                (and (dead? s) (alive-only :right letter?))    :lc
-                (and (dead? s) (alive-only :left letter?))     :rc
-                (and (dead? s)
-                     (or (alive-only :right #{:lc})
-                         (alive-only :left #{:rc})))           :x
-                (and (= :lc s)
-                     (between-l-r #{:x :a :b :dead} letter?))  right
-                (and (= :rc s)
-                     (between-l-r letter? #{:x :a :b :dead}))  left
-                (and (letter? s) (between-l-r #{:lc} letter?)) :lc
-                (and (letter? s) (between-l-r letter? #{:rc})) :rc
-                (between-l-r #{:lc} #{:rc})                    :f
-                (or (and (= :lc s) (= :rc right))
-                    (and (= :lc left) (= :rc s)))              :m
-                (and (dead? s) (= :m top))                     :n
-                (and (dead? s) (letter? top) (= :n right))     :n
-                (and (dead? s) (letter? top)
-                     (#{:n :a :b} left))                       top
-                (and (= :n s) (letter? right))                 right
-                (and (letter? s) (= :n left))                  :n
-                (and (letter? s) (= :x left) (= s bottom))     :x
-                (and (letter? s) (= :x left)
-                     (letter? bottom) (not (= s bottom)))      :f
-                (and (= :m s) (= :x left))                     :s
-                :else                                          s)}}))))
+              (or (command n-states cell)
+                  {:state
+                   (cond
+                    (and (dead? s) (alive-only :right letter?))    :lc
+                    (and (dead? s) (alive-only :left letter?))     :rc
+                    (and (dead? s)
+                         (or (alive-only :right #{:lc})
+                             (alive-only :left #{:rc})))           :x
+                    (and (= :lc s)
+                         (between-l-r #{:x :a :b :dead} letter?))  right
+                    (and (= :rc s)
+                         (between-l-r letter? #{:x :a :b :dead}))  left
+                    (and (letter? s) (between-l-r #{:lc} letter?)) :lc
+                    (and (letter? s) (between-l-r letter? #{:rc})) :rc
+                    (between-l-r #{:lc} #{:rc})                    :f
+                    (or (and (= :lc s) (= :rc right))
+                        (and (= :lc left) (= :rc s)))              :m
+                    (and (dead? s) (= :m top))                     :n
+                    (and (dead? s) (letter? top) (= :n right))     :n
+                    (and (dead? s) (letter? top)
+                         (#{:n :a :b} left))                       top
+                    (and (= :n s) (letter? right))                 right
+                    (and (letter? s) (= :n left))                  :n
+                    (and (letter? s) (= :x left) (= s bottom))     :x
+                    (and (letter? s) (= :x left)
+                         (letter? bottom) (not (= s bottom)))      :f
+                    (and (= :m s) (= :x left))                     :s
+                    :else                                          s)})}))))
 
       InformationChannelsSpecification
       (process-info-channel [this ic]
-        (go (while true (let [c (<! ic)] (swap! ext-command merge c)))))
+        (go (while true (let [cmd (<! ic)] (reset! ext-command cmd)))))
       (fill-output-info-channel [this grid oc]
         (put! oc (->> grid
                       :cells

@@ -100,6 +100,17 @@
     (process-info-channel [this ic])
     (fill-output-info-channel [this grid oc])))
 
+(defn- get-cell [this cells coords] (get cells coords (default-cell this)))
+
+(defn- ordered-neighbour-states
+  [get-cell width height x y]
+  (->> (neighbours width height [x y])
+       (map (comp :state get-cell))
+       (interleave [:top-left :left :bottom-left
+                    :top :bottom :top-right
+                    :right :bottom-right])
+       (apply hash-map)))
+
 (def unrestricted-language-parser
   "Cell automaton that is able to detect whether the given word belongs to the
   unrestricted language L = { ww : w є {a, b}* }."
@@ -113,13 +124,8 @@
         (transition
          this grid
          (fn [this width height cells x y]
-           (let [get-cell (fn [coords] (get cells coords (default-cell this)))
-                 n-states (->> (neighbours width height [x y])
-                               (map (comp :state get-cell))
-                               (interleave [:top-left :left :bottom-left
-                                            :top :bottom :top-right
-                                            :right :bottom-right])
-                               (apply hash-map))
+           (let [get-cell (partial get-cell this cells)
+                 n-states (ordered-neighbour-states get-cell width height x y)
                  {:keys [top-left top top-right left right
                          bottom-left bottom bottom-right]} n-states
                  cell (get-cell [x y])
@@ -180,3 +186,37 @@
                       (map (fn [[k v]] [k (count v)]))
                       (into {})
                       (merge {:s 0 :f 0})))))))
+
+(def corporate-world
+  (reify
+    AutomatonSpecification
+    (default-cell [_] {:state :worker})
+    (next-initial-state [_ state]
+      (or ({:worker :corp-a :corp-a :corp-b :corp-b :worker} state) :worker))
+    (next-grid [this grid] grid
+      (transition
+         this grid
+         (fn [this width height cells x y]
+           (let [get-cell (partial get-cell this cells)
+                 n-states (ordered-neighbour-states get-cell width height x y)
+                 {:keys [top-left top top-right left right
+                         bottom-left bottom bottom-right]} n-states
+                 counted-neigh-states
+                 (into {:worker 0 :corp-a 0 :corp-b 0}
+                       (map (fn [[k v]] [k (count v)])
+                            (group-by identity (vals n-states))))
+
+                 {:keys [worker corp-a corp-b]} counted-neigh-states
+                 cell (get-cell [x y])
+                 s (:state cell)]
+             {[x y]
+              {:state
+               (cond
+                (= 0 corp-a corp-b)                   s
+                (and (= :worker s) (> corp-a corp-b)) :worker-a
+                (and (= :worker s) (> corp-b corp-a)) :worker-b
+                :else                                 s)}}))))
+
+    InformationChannelsSpecification
+    (process-info-channel [this ic])
+    (fill-output-info-channel [this grid oc])))

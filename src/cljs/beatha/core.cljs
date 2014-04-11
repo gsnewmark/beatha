@@ -358,8 +358,7 @@
 
 
 (om/root
- (gen-app-view
-  a/unrestricted-language-parser unrestricted-language-parser-customization)
+ (gen-app-view a/corporate-world)
  app-state
  {:target (. js/document (getElementById "app"))
   :init-state {:animation-step 500}})

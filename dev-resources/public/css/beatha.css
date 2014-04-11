@@ -59,3 +59,23 @@
 .automaton-cell.s {
     background-color: #268bd2;
 }
+
+.automaton-cell.worker {
+    background-color: #859900;
+}
+
+.automaton-cell.corp-a {
+    background-color: #268bd2;
+}
+
+.automaton-cell.worker-a {
+    background-color: #1f6699;
+}
+
+.automaton-cell.corp-b {
+    background-color: #dc322f;
+}
+
+.automaton-cell.worker-b {
+    background-color: #9e1816;
+}

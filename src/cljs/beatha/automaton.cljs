@@ -1,6 +1,7 @@
 (ns beatha.automaton
   (:require-macros [cljs.core.async.macros :refer [go]])
-  (:require [cljs.core.async :refer [put! <!]]))
+  (:require [cljs.core.async :refer [put! <!]]
+            [clojure.set :as set]))
 
 (defprotocol AutomatonSpecification
   "Describes basic interactions with particular set of cellular automata
@@ -188,48 +189,59 @@
                       (merge {:s 0 :f 0})))))))
 
 (def labour-market-model
-  (reify
-    AutomatonSpecification
-    (default-cell [_] {:state :worker})
-    (next-initial-state [_ state]
-      (or ({:worker :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
-            :corp-3 :corp-4 :corp-4 :worker} state) :worker))
-    (next-grid [this grid]
-      (transition
-       this grid
-       (fn [this width height cells x y]
-         (let [get-cell (partial get-cell this cells)
-               n-states (ordered-neighbour-states get-cell width height x y)
-               {:keys [top-left top top-right left right
-                       bottom-left bottom bottom-right]} n-states
-               counted-neigh-states
-                 (into {:worker 0 :corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}
-                       (map (fn [[k v]] [k (count v)])
-                            (group-by identity (vals n-states))))
+  (let [state (atom {:government {:help 10}
+                     :job-offer-chance 0.2
+                     :productivity {:corp-1 (+ 15 (rand 10))
+                                    :corp-2 (+ 15 (rand 10))
+                                    :corp-3 (+ 15 (rand 10))
+                                    :corp-4 (+ 15 (rand 10))}})
 
-               {:keys [worker corp-1 corp-2 corp-3 corp-4]}
-               counted-neigh-states
+        wage (fn [state c] (if (contains? (:productivity state) c)
+                            (/ ((:productivity state) c) 1.5)
+                            (get-in state [:government :help])))
+        company-worker {:corp-1 :worker-1 :corp-2 :worker-2
+                        :corp-3 :worker-3 :corp-4 :worker-4}
+        worker? #((into #{:worker} (vals company-worker)) %)
+        company-of-worker (fn [s] (or ((set/map-invert company-worker) s) s))
+        worker-of-company (fn [s] (or (company-worker s) s))]
+    (reify
+      AutomatonSpecification
+      (default-cell [_] {:state :worker})
+      (next-initial-state [_ state]
+        (or ({:worker :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
+              :corp-3 :corp-4 :corp-4 :worker} state) :worker))
+      (next-grid [this grid]
+        (transition
+         this grid
+         (fn [this width height cells x y]
+           (let [state @state
+                 get-cell (partial get-cell this cells)
+                 n-states
+                 (ordered-neighbour-states get-cell width height x y)
 
-               cell (get-cell [x y])
-               s (:state cell)]
-           {[x y]
-            {:state
-             (cond
-              (= 0 corp-1 corp-2 corp-3 corp-4)                      s
-              (and (= :worker s) (every? true? [(> corp-1 corp-2)
-                                                (> corp-1 corp-3)
-                                                (> corp-1 corp-4)])) :worker-1
-              (and (= :worker s) (every? true? [(> corp-2 corp-1)
-                                                (> corp-2 corp-3)
-                                                (> corp-2 corp-4)])) :worker-2
-              (and (= :worker s) (every? true? [(> corp-3 corp-2)
-                                                (> corp-3 corp-1)
-                                                (> corp-3 corp-4)])) :worker-3
-              (and (= :worker s) (every? true? [(> corp-4 corp-2)
-                                                (> corp-4 corp-3)
-                                                (> corp-4 corp-1)])) :worker-4
-              :else                                                  s)}}))))
+                 {:keys [top-left top top-right left right
+                         bottom-left bottom bottom-right]}
+                 n-states
 
-    InformationChannelsSpecification
-    (process-info-channel [this ic])
-    (fill-output-info-channel [this grid oc])))
+                 cell (get-cell [x y])
+                 s (:state cell)
+                 current-wage (wage state (company-of-worker s))]
+             {[x y]
+              {:state (if-not (worker? s)
+                        s
+                        (->> (vals n-states)
+                             (map company-of-worker)
+                             (filter #(not (#{(company-of-worker s)} %)))
+                             (into #{})
+                             (filter #(<= (rand) (:job-offer-chance state)))
+                             (map (fn [o] [o (wage state o)]))
+                             (reduce (fn [[b-s b-w] [c-s c-w]]
+                                       (if (>= c-w b-w)
+                                         [(worker-of-company c-s) c-w]
+                                         [b-s b-w]))
+                                     [s current-wage])
+                             first))}}))))
+
+      InformationChannelsSpecification
+      (process-info-channel [this ic])
+      (fill-output-info-channel [this grid oc]))))

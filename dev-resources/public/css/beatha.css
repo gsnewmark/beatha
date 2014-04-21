@@ -64,18 +64,34 @@
     background-color: #859900;
 }
 
-.automaton-cell.corp-a {
+.automaton-cell.corp-1 {
     background-color: #268bd2;
 }
 
-.automaton-cell.worker-a {
+.automaton-cell.worker-1 {
     background-color: #1f6699;
 }
 
-.automaton-cell.corp-b {
+.automaton-cell.corp-2 {
     background-color: #dc322f;
 }
 
-.automaton-cell.worker-b {
+.automaton-cell.worker-2 {
     background-color: #9e1816;
+}
+
+.automaton-cell.corp-3 {
+    background-color: #6c71c4;
+}
+
+.automaton-cell.worker-3 {
+    background-color: #4c4f7a;
+}
+
+.automaton-cell.corp-4 {
+    background-color: #d33682;
+}
+
+.automaton-cell.worker-4 {
+    background-color: #a34b76;
 }

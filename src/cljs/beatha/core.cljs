@@ -358,7 +358,7 @@
 
 
 (om/root
- (gen-app-view a/corporate-world)
+ (gen-app-view a/labour-market-model)
  app-state
  {:target (. js/document (getElementById "app"))
   :init-state {:animation-step 500}})

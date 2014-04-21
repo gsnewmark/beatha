@@ -187,35 +187,48 @@
                       (into {})
                       (merge {:s 0 :f 0})))))))
 
-(def corporate-world
+(def labour-market-model
   (reify
     AutomatonSpecification
     (default-cell [_] {:state :worker})
     (next-initial-state [_ state]
-      (or ({:worker :corp-a :corp-a :corp-b :corp-b :worker} state) :worker))
-    (next-grid [this grid] grid
+      (or ({:worker :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
+            :corp-3 :corp-4 :corp-4 :worker} state) :worker))
+    (next-grid [this grid]
       (transition
-         this grid
-         (fn [this width height cells x y]
-           (let [get-cell (partial get-cell this cells)
-                 n-states (ordered-neighbour-states get-cell width height x y)
-                 {:keys [top-left top top-right left right
-                         bottom-left bottom bottom-right]} n-states
-                 counted-neigh-states
-                 (into {:worker 0 :corp-a 0 :corp-b 0}
+       this grid
+       (fn [this width height cells x y]
+         (let [get-cell (partial get-cell this cells)
+               n-states (ordered-neighbour-states get-cell width height x y)
+               {:keys [top-left top top-right left right
+                       bottom-left bottom bottom-right]} n-states
+               counted-neigh-states
+                 (into {:worker 0 :corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}
                        (map (fn [[k v]] [k (count v)])
                             (group-by identity (vals n-states))))
 
-                 {:keys [worker corp-a corp-b]} counted-neigh-states
-                 cell (get-cell [x y])
-                 s (:state cell)]
-             {[x y]
-              {:state
-               (cond
-                (= 0 corp-a corp-b)                   s
-                (and (= :worker s) (> corp-a corp-b)) :worker-a
-                (and (= :worker s) (> corp-b corp-a)) :worker-b
-                :else                                 s)}}))))
+               {:keys [worker corp-1 corp-2 corp-3 corp-4]}
+               counted-neigh-states
+
+               cell (get-cell [x y])
+               s (:state cell)]
+           {[x y]
+            {:state
+             (cond
+              (= 0 corp-1 corp-2 corp-3 corp-4)                      s
+              (and (= :worker s) (every? true? [(> corp-1 corp-2)
+                                                (> corp-1 corp-3)
+                                                (> corp-1 corp-4)])) :worker-1
+              (and (= :worker s) (every? true? [(> corp-2 corp-1)
+                                                (> corp-2 corp-3)
+                                                (> corp-2 corp-4)])) :worker-2
+              (and (= :worker s) (every? true? [(> corp-3 corp-2)
+                                                (> corp-3 corp-1)
+                                                (> corp-3 corp-4)])) :worker-3
+              (and (= :worker s) (every? true? [(> corp-4 corp-2)
+                                                (> corp-4 corp-3)
+                                                (> corp-4 corp-1)])) :worker-4
+              :else                                                  s)}}))))
 
     InformationChannelsSpecification
     (process-info-channel [this ic])

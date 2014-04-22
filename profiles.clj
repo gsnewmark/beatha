@@ -18,6 +18,16 @@
             ["phantomjs" :runner
              "dev-resources/public/js/beatha.js"]}}}
 
+ :prod [:shared
+        {:cljsbuild
+         {:builds
+          {:beatha
+           {:compiler {:libs [""]
+                       :optimizations :advanced
+                       :pretty-print false
+                       :preamble ["react/react.min.js"]
+                       :externs ["react/externs/react.js"]}}}}}]
+
  :tdd [:shared]
 
  :dev [:shared

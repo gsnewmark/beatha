@@ -3,7 +3,7 @@ lein: lein2
 script: lein2 with-profile tdd test
 env:
   global:
-    secure: cGlRM7B+yZOZQrC0CZu4AlG+Jup0cTC3P+81TNAg2P9DaG5RUug1onNG8Rx5tSZCsV8icoom2KObBhFaHC+XsB54RpY3BLL9bPewY3kQ026gJKi64ba1ijKGpF2UcUfr26TWp8YWLDDA+Sdi3Ae9ftPhid8CXn9xUpOvcYDVM6M=
+    secure: ZvJCLF7dODiCuYIPzsDDQLufL8m7MJkNXN11dme0VVd9uXh8zWceYfclijFLM+2DgKqfvZg2frlD/Q0TfQU/B+8QTHuw3pwsmW2HsrX/N+r69LEBpNcR8+2rMmLPnL3WQnqulKYTB9udzvVdxHS42BLQ1N605sezNbLeravnOfY=
 before_script:
   - git config --global user.email "travis@travis-ci.org"
   - git config --global user.name "travis-ci"

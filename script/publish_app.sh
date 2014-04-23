@@ -8,9 +8,11 @@ if [ "$TRAVIS_BRANCH" == "master" ]; then
   git remote set-url origin "https://${GH_TOKEN}@github.com/gsnewmark/beatha.git"
   lein2 with-profile prod do clean, compile
 
+  ls -alF
   git checkout gh-pages
   git pull origin gh-pages
   cp dev-resources/public/js/beatha.js js/beatha.js
+  ls -alF
   git add js/beatha.js
   git status
   git commit -m 'Deploy to Github Pages'

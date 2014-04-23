@@ -203,8 +203,7 @@
                         :corp-3 :worker-3 :corp-4 :worker-4}
         worker? #((into #{:worker} (vals company-worker)) %)
         company-of-worker (fn [s] (or ((set/map-invert company-worker) s) s))
-        worker-of-company (fn [s] (or (company-worker s) s))
-        test 1]
+        worker-of-company (fn [s] (or (company-worker s) s))]
     (reify
       AutomatonSpecification
       (default-cell [_] {:state :worker})

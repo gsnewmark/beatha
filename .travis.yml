@@ -5,6 +5,10 @@ env:
   global:
     secure: cGlRM7B+yZOZQrC0CZu4AlG+Jup0cTC3P+81TNAg2P9DaG5RUug1onNG8Rx5tSZCsV8icoom2KObBhFaHC+XsB54RpY3BLL9bPewY3kQ026gJKi64ba1ijKGpF2UcUfr26TWp8YWLDDA+Sdi3Ae9ftPhid8CXn9xUpOvcYDVM6M=
 before_script:
+  - git config --global user.email "travis@travis-ci.org"
+  - git config --global user.name "travis-ci"
   - chmod +x script/publish_app.sh
-after_script:
+after_success:
+  - git config --global credential.helper "store --file=.git/credentials"
+  - echo "https://${GH_TOKEN}:@github.com" > .git/credentials
   - script/publish_app.sh

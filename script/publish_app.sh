@@ -1,8 +1,6 @@
 #!/bin/bash
 
 if [ "$TRAVIS_BRANCH" == "master" ]; then
-  git config --global user.email "travis@travis-ci.org"
-  git config --global user.name "travis-ci"
   cd $HOME
   git clone --quiet https://${GH_TOKEN}@github.com/gsnewmark/beatha > /dev/null
 

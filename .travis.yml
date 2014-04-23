@@ -7,6 +7,4 @@ env:
 before_script:
   - chmod +x script/publish_app.sh
 after_script:
-  - git config credential.helper "store --file=.git/credentials"
-  - echo "https://${GH_TOKEN}:@github.com" > .git/credentials
   - script/publish_app.sh

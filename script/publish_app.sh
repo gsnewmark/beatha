@@ -2,10 +2,11 @@
 
 if [ "$TRAVIS_BRANCH" == "master" ]; then
   cd $HOME
+  echo $GH_TOKEN
   git clone --quiet https://${GH_TOKEN}@github.com/gsnewmark/beatha > /dev/null
 
   cd beatha
-  git remote set-url origin "https://${GH_TOKEN}@github.com/gsnewmark/beatha.git"
+  git remote set-url origin https://${GH_TOKEN}@github.com/gsnewmark/beatha.git
   lein2 with-profile prod do clean, compile
 
   git checkout gh-pages

@@ -22,7 +22,8 @@
         {:cljsbuild
          {:builds
           {:beatha
-           {:compiler {:libs [""]
+           {:source-paths []
+            :compiler {:libs [""]
                        :optimizations :advanced
                        :pretty-print false
                        :preamble ["react/react.min.js"]

@@ -9,6 +9,4 @@ before_script:
   - git config --global user.name "travis-ci"
   - chmod +x script/publish_app.sh
 after_success:
-  - git config --global credential.helper "store --file=.git/credentials"
-  - echo "https://${GH_TOKEN}:@github.com" > .git/credentials
   - script/publish_app.sh

@@ -46,16 +46,18 @@
           (neighbours coords))))
 
 (defn- transition
-  [this grid tfn]
-  (let [{:keys [width height cells]} grid]
-    (->>
-     (range height)
-     (mapcat
-      (fn [y] (map (fn [x] (tfn this width height cells x y)) (range width))))
-     (remove #(let [[cell] (vals %)] (nil? cell)))
-     (remove #(let [[cell] (vals %)] (= (:state cell) :dead)))
-     (reduce merge {})
-     (assoc grid :cells))))
+  ([this grid tfn] (transition this grid :dead tfn))
+  ([this grid dead-state tfn]
+     (let [{:keys [width height cells]} grid]
+       (->>
+        (range height)
+        (mapcat
+         (fn [y] (map (fn [x] (tfn this width height cells x y))
+                     (range width))))
+        (remove #(let [[cell] (vals %)] (nil? cell)))
+        (remove #(let [[cell] (vals %)] (= (:state cell) dead-state)))
+        (reduce merge {})
+        (assoc grid :cells)))))
 
 
 (def default-automata
@@ -189,16 +191,24 @@
                       (merge {:s 0 :f 0})))))))
 
 (def labour-market-model
-  (let [state (atom {:government {:help 10}
+  (let [state (atom {:government {:welfare-rate 0.2
+                                  :max-welfare 10
+                                  :tax-rate 0.95
+                                  :capital 1000}
                      :job-offer-chance 0.2
-                     :productivity {:corp-1 (+ 15 (rand 10))
-                                    :corp-2 (+ 15 (rand 10))
-                                    :corp-3 (+ 15 (rand 10))
-                                    :corp-4 (+ 15 (rand 10))}})
-
-        wage (fn [state c] (if (contains? (:productivity state) c)
-                            (/ ((:productivity state) c) 1.5)
-                            (get-in state [:government :help])))
+                     :companies
+                     {:corp-1 {:capital 100
+                               :greediness 0.5
+                               :productivity (+ 15 (rand 10))}
+                      :corp-2 {:capital 100
+                               :greediness 0.5
+                               :productivity (+ 15 (rand 10))}
+                      :corp-3 {:capital 100
+                               :greediness 0.5
+                               :productivity (+ 15 (rand 10))}
+                      :corp-4 {:capital 100
+                               :greediness 0.5
+                               :productivity (+ 15 (rand 10))}}})
         company-worker {:corp-1 :worker-1 :corp-2 :worker-2
                         :corp-3 :worker-3 :corp-4 :worker-4}
         worker? #((into #{:worker} (vals company-worker)) %)
@@ -211,36 +221,69 @@
         (or ({:worker :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
               :corp-3 :corp-4 :corp-4 :worker} state) :worker))
       (next-grid [this grid]
-        (transition
-         this grid
-         (fn [this width height cells x y]
-           (let [state @state
-                 get-cell (partial get-cell this cells)
-                 n-states
-                 (ordered-neighbour-states get-cell width height x y)
+        (let [sstate @state
+              {:keys [width height cells]} grid
+              workers-count (- (* width height) (count cells))
+              wage (fn [state c]
+                     (if-let [corp (get (:companies state) c)]
+                       (let [{:keys [capital productivity greediness]} corp]
+                         (->> (get-in state [:government :tax-rate])
+                              (- 1)
+                              (* productivity)
+                              (* (- 1 greediness))))
+                       (let [{:keys [welfare-rate max-welfare capital]}
+                             (:government state)]
+                         (min max-welfare
+                              (/ (* capital welfare-rate) workers-count)))))]
+          (transition
+           this grid :worker
+           (fn [this width height cells x y]
+             (let [get-cell (partial get-cell this cells)
+                   n-states
+                   (ordered-neighbour-states get-cell width height x y)
 
-                 {:keys [top-left top top-right left right
-                         bottom-left bottom bottom-right]}
-                 n-states
+                   {:keys [top-left top top-right left right
+                           bottom-left bottom bottom-right]}
+                   n-states
 
-                 cell (get-cell [x y])
-                 s (:state cell)
-                 current-wage (wage state (company-of-worker s))]
-             {[x y]
-              {:state (if-not (worker? s)
-                        s
-                        (->> (vals n-states)
-                             (map company-of-worker)
-                             (filter #(not (#{(company-of-worker s)} %)))
-                             (into #{})
-                             (filter #(<= (rand) (:job-offer-chance state)))
-                             (map (fn [o] [o (wage state o)]))
-                             (reduce (fn [[b-s b-w] [c-s c-w]]
-                                       (if (>= c-w b-w)
-                                         [(worker-of-company c-s) c-w]
-                                         [b-s b-w]))
-                                     [s current-wage])
-                             first))}}))))
+                   cell (get-cell [x y])
+                   s (:state cell)
+                   current-company (company-of-worker s)
+
+                   company-income
+                   (if current-company
+                     (get-in sstate [:companies current-company :productivity])
+                     0)
+                   current-wage (wage sstate current-company)
+                   current-tax
+                   (* company-income (get-in sstate [:government :tax-rate]))]
+               (swap! state
+                      (fn [s]
+                        (-> s
+                            (update-in [:government :capital]
+                                       #(+ % current-tax))
+                            ((fn [s]
+                               (if (worker? current-company)
+                                 (update-in s [:government :capital]
+                                            #(- % current-wage))
+                                 (update-in s [:companies current-company :capital]
+                                            #(- (+ % company-income)
+                                                current-wage current-tax))))))))
+               {[x y]
+                {:state (if-not (worker? s)
+                          s
+                          (->> (vals n-states)
+                               (map company-of-worker)
+                               (filter #(not (#{(company-of-worker s)} %)))
+                               (into #{})
+                               (filter #(<= (rand) (:job-offer-chance sstate)))
+                               (map (fn [o] [o (wage sstate o)]))
+                               (reduce (fn [[b-s b-w] [c-s c-w]]
+                                         (if (>= c-w b-w)
+                                           [(worker-of-company c-s) c-w]
+                                           [b-s b-w]))
+                                       [s current-wage])
+                               first))}})))))
 
       InformationChannelsSpecification
       (process-info-channel [this ic])

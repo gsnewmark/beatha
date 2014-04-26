@@ -7,9 +7,9 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:grid {:width 10 :height 10 :cells {}}
-                      :display {:width 600 :height 600}
-                      :started false}))
+(def app-state {:grid {:width 10 :height 10 :cells {}}
+                :display {:width 600 :height 600}
+                :started false})
 
 
 (defn cell-view
@@ -120,6 +120,13 @@
                :onClick #(put! change-display-dimensions [width height])}
           "Reset display"))))))
 
+(defn navigation-button
+  [text f]
+  (dom/button #js {:type "button"
+                   :className "btn btn-success btn-lg btn-block"
+                   :onClick f}
+    text))
+
 
 (defprotocol CellularAutomatonAppCustomization
   (automaton-input-view [this]
@@ -137,6 +144,8 @@
 
 (def ^:private empty-view
   (fn [data owner] (reify om/IRender (render [_] (dom/span nil "")))))
+
+(declare render-menu-view)
 
 (defn gen-app-view
   ([automaton-spec]
@@ -225,6 +234,9 @@
          (render-state [_ state]
            (dom/div
             #js {:className "container-liquid"}
+            (dom/div #js {:className "row"}
+                     (navigation-button "Menu" render-menu-view)
+                     (dom/hr nil))
             (dom/div
              #js {:className "row"}
              (dom/div
@@ -357,8 +369,42 @@
       (om/transact! data (fn [d] (assoc d :result :none))))))
 
 
-(om/root
- (gen-app-view a/labour-market-model)
- app-state
- {:target (. js/document (getElementById "app"))
-  :init-state {:animation-step 500}})
+(defn render-cellular-automaton
+  [view]
+  (om/root
+   view
+   app-state
+   {:target (. js/document (getElementById "app"))
+    :init-state {:animation-step 500}}))
+
+(defn menu-view
+  [data owner]
+  (reify
+    om/IRender
+    (render [_]
+      (dom/div #js {:className "app-menu"}
+        (dom/div #js {:className "page-header"}
+          (dom/h1 nil "Cellular automata experiments"))
+        (navigation-button
+         "Game of Life"
+         (partial render-cellular-automaton (gen-app-view a/game-of-life)))
+        (navigation-button
+         "Unrestricted language parser"
+         (partial render-cellular-automaton
+                  (gen-app-view
+                   a/unrestricted-language-parser
+                   unrestricted-language-parser-customization)))
+        (navigation-button
+         "Economic model parser"
+         (partial render-cellular-automaton
+                  (gen-app-view a/labour-market-model)))))))
+
+(defn render-menu-view
+  []
+  (om/root
+   menu-view
+   app-state
+   {:target (. js/document (getElementById "app"))}))
+
+
+(render-menu-view)

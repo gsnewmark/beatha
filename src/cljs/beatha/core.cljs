@@ -395,7 +395,7 @@
                    a/unrestricted-language-parser
                    unrestricted-language-parser-customization)))
         (navigation-button
-         "Economic model parser"
+         "Economic model"
          (partial render-cellular-automaton
                   (gen-app-view a/labour-market-model)))))))
 

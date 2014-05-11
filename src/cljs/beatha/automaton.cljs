@@ -91,9 +91,8 @@
                alive? (= (:state cell) :alive)]
            {[x y]
             (cond
-             (and alive? (< n 2))              {:state :dead}
+             (and alive? (or (< n 2) (> n 3))) {:state :dead}
              (and alive? (or (= n 2) (= n 3))) {:state :alive}
-             (and alive? (> n 3))              {:state :dead}
              (and (not alive?) (= n 3))        {:state :alive}
              :else                             cell)}))))
 

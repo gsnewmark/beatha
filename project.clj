@@ -1,6 +1,6 @@
 (defproject beatha "0.0.1-SNAPSHOT"
   :description "Cellular automata experiments."
-  :url "http://github.com/gsnewmark/beatha"
+  :url "https://gsnewmark.github.io/beatha/"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo}

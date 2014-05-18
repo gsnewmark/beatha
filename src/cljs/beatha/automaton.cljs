@@ -46,14 +46,14 @@
           (neighbours coords))))
 
 (defn- transition
-  [this grid tfn]
+  [this grid dead-state tfn]
   (let [{:keys [width height cells]} grid]
     (->>
      (range height)
      (mapcat
       (fn [y] (map (fn [x] (tfn this width height cells x y)) (range width))))
      (remove #(let [[cell] (vals %)] (nil? cell)))
-     (remove #(let [[cell] (vals %)] (= (:state cell) :dead)))
+     (remove #(let [[cell] (vals %)] (= (:state cell) dead-state)))
      (reduce merge {})
      (assoc grid :cells))))
 
@@ -80,7 +80,7 @@
       ({:dead :alive :alive :dead} state))
     (next-grid [this grid]
       (transition
-       this grid
+       this grid :dead
        (fn [this width height cells x y]
          (let [get-cell (fn [coords] (get cells coords (default-cell this)))
                n (->> (neighbours width height [x y])
@@ -122,7 +122,7 @@
         (or ({:dead :a :a :b :b :dead} state) :dead))
       (next-grid [this grid]
         (transition
-         this grid
+         this grid :dead
          (fn [this width height cells x y]
            (let [get-cell (partial get-cell this cells)
                  n-states (ordered-neighbour-states get-cell width height x y)
@@ -187,59 +187,90 @@
                       (into {})
                       (merge {:s 0 :f 0})))))))
 
-(def labour-market-model
-  (let [state (atom {:government {:help 10}
-                     :job-offer-chance 0.2
-                     :productivity {:corp-1 (+ 15 (rand 10))
-                                    :corp-2 (+ 15 (rand 10))
-                                    :corp-3 (+ 15 (rand 10))
-                                    :corp-4 (+ 15 (rand 10))}})
+(defn- weighted
+  [m]
+  (let [w (reductions #(+ % %2) (vals m))
+        r (rand (last w))]
+    (nth (keys m) (count (take-while #(<= % r) w)))))
 
-        wage (fn [state c] (if (contains? (:productivity state) c)
-                            (/ ((:productivity state) c) 1.5)
-                            (get-in state [:government :help])))
-        company-worker {:corp-1 :worker-1 :corp-2 :worker-2
-                        :corp-3 :worker-3 :corp-4 :worker-4}
-        worker? #((into #{:worker} (vals company-worker)) %)
-        company-of-worker (fn [s] (or ((set/map-invert company-worker) s) s))
-        worker-of-company (fn [s] (or (company-worker s) s))]
+(def market-model
+  (let [env (atom {:prices
+                   {:corp-1 10 :corp-2 45 :corp-3 50 :corp-4 10}
+                   :depreciation 0.03
+                   :utility-params
+                   {:a 0 :p 0}
+                   :utility
+                   (fn [a p price global-share local-share]
+                     (* global-share
+                        (Math/pow local-share a)
+                        (Math/pow price p)))})
+        user-preferences
+        (fn [env global-share n-states]
+          (let [{:keys [utility utility-params prices]} env
+                available-goods (keys prices)
+                neighbour-count (count n-states)
+                local-share
+                (->> n-states
+                     (group-by second)
+                     (map (fn [[k v]] [k (/ (count v) neighbour-count)]))
+                     (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))
+
+                utility
+                (partial utility (:a utility-params) (:p utility-params))]
+            (->> available-goods
+                 (map
+                  (fn [g]
+                    [g (utility (prices g)
+                                (global-share g)
+                                (local-share g))]))
+                 ((fn [p]
+                    (let [total-pref (apply + (map second p))]
+                      (map (fn [[k v]]
+                             [k (if (not (zero? total-pref))
+                                  (/ v total-pref)
+                                  (/ 1 (count available-goods)))])
+                           p))))
+                 (into {}))))]
     (reify
       AutomatonSpecification
-      (default-cell [_] {:state :worker})
+      (default-cell [_] {:state :without-good})
       (next-initial-state [_ state]
-        (or ({:worker :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
-              :corp-3 :corp-4 :corp-4 :worker} state) :worker))
+        (get {:without-good :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
+              :corp-3 :corp-4 :corp-4 :without-good}
+             state
+            :without-good))
       (next-grid [this grid]
-        (transition
-         this grid
-         (fn [this width height cells x y]
-           (let [state @state
-                 get-cell (partial get-cell this cells)
-                 n-states
-                 (ordered-neighbour-states get-cell width height x y)
+        (let [cell-count (* (:width grid) (:height grid))
+              global-share
+              (->> (vals (:cells grid))
+                   (group-by :state)
+                   (map (fn [[k v]] [k (/ (count v) cell-count)]))
+                   (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))]
+          (transition
+           this grid :without-good
+           (fn [this width height cells x y]
+             (let [env @env
+                   get-cell (partial get-cell this cells)
+                   n-states
+                   (ordered-neighbour-states get-cell width height x y)
 
-                 {:keys [top-left top top-right left right
-                         bottom-left bottom bottom-right]}
-                 n-states
+                   {:keys [top-left top top-right left right
+                           bottom-left bottom bottom-right]}
+                   n-states
 
-                 cell (get-cell [x y])
-                 s (:state cell)
-                 current-wage (wage state (company-of-worker s))]
-             {[x y]
-              {:state (if-not (worker? s)
-                        s
-                        (->> (vals n-states)
-                             (map company-of-worker)
-                             (filter #(not (#{(company-of-worker s)} %)))
-                             (into #{})
-                             (filter #(<= (rand) (:job-offer-chance state)))
-                             (map (fn [o] [o (wage state o)]))
-                             (reduce (fn [[b-s b-w] [c-s c-w]]
-                                       (if (>= c-w b-w)
-                                         [(worker-of-company c-s) c-w]
-                                         [b-s b-w]))
-                                     [s current-wage])
-                             first))}}))))
+                   cell (get-cell [x y])
+                   s (:state cell)
+                   without-good? (fn [s] (= :without-good s))]
+               {[x y]
+                {:state
+                 (cond
+                  (< (rand) (:depreciation env))
+                  :without-good
+
+                  (without-good? s)
+                  (weighted (user-preferences env global-share n-states))
+
+                  :else s)}})))))
 
       InformationChannelsSpecification
       (process-info-channel [this ic])

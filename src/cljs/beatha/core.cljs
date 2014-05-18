@@ -397,7 +397,7 @@
         (navigation-button
          "Economic model"
          (partial render-cellular-automaton
-                  (gen-app-view a/labour-market-model)))))))
+                  (gen-app-view a/market-model)))))))
 
 (defn render-menu-view
   []

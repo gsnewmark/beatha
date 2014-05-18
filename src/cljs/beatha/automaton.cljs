@@ -195,10 +195,10 @@
 
 (def market-model
   (let [env (atom {:prices
-                   {:corp-1 10 :corp-2 45 :corp-3 50 :corp-4 10}
+                   {:corp-1 10 :corp-2 10 :corp-3 10 :corp-4 10}
                    :depreciation 0.03
                    :utility-params
-                   {:a 0 :p 0}
+                   {:a 1 :p -1}
                    :utility
                    (fn [a p price global-share local-share]
                      (* global-share

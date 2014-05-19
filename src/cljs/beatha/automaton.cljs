@@ -194,8 +194,11 @@
     (nth (keys m) (count (take-while #(<= % r) w)))))
 
 (def market-model
-  (let [env (atom {:prices
+  (let [env (atom {:tax-rate 0.05
+                   :prices
                    {:corp-1 10 :corp-2 10 :corp-3 10 :corp-4 10}
+                   :capital
+                   {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 0}
                    :depreciation 0.03
                    :utility-params
                    {:a 1 :p -1}
@@ -249,7 +252,8 @@
           (transition
            this grid :without-good
            (fn [this width height cells x y]
-             (let [env @env
+             (let [env-atom env
+                   env @env
                    get-cell (partial get-cell this cells)
                    n-states
                    (ordered-neighbour-states get-cell width height x y)
@@ -261,6 +265,15 @@
                    cell (get-cell [x y])
                    s (:state cell)
                    without-good? (fn [s] (= :without-good s))]
+               (when-not (without-good? s)
+                 (let [price (get-in env [:prices s] 0)
+                       tax (* price (get env :tax-rate 0))
+                       income (- price tax)]
+                   (swap! env-atom
+                          (fn [e]
+                            (-> e
+                                (update-in [:capital s] + income)
+                                (update-in [:capital :government] + tax))))))
                {[x y]
                 {:state
                  (cond

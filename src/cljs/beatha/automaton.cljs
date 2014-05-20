@@ -196,9 +196,11 @@
 (def market-model
   (let [env (atom {:tax-rate 0.05
                    :prices
-                   {:corp-1 10 :corp-2 10 :corp-3 10 :corp-4 10}
+                   {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
                    :capital
-                   {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 0}
+                   {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 1000}
+                   :expenditures-per-cell
+                   {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
                    :depreciation 0.03
                    :utility-params
                    {:a 1 :p -1}
@@ -244,46 +246,62 @@
             :without-good))
       (next-grid [this grid]
         (let [cell-count (* (:width grid) (:height grid))
+              env-atom env
+              env @env
               global-share
               (->> (vals (:cells grid))
                    (group-by :state)
                    (map (fn [[k v]] [k (/ (count v) cell-count)]))
-                   (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))]
-          (transition
-           this grid :without-good
-           (fn [this width height cells x y]
-             (let [env-atom env
-                   env @env
-                   get-cell (partial get-cell this cells)
-                   n-states
-                   (ordered-neighbour-states get-cell width height x y)
+                   (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))
 
-                   {:keys [top-left top top-right left right
-                           bottom-left bottom bottom-right]}
-                   n-states
+              next
+              (transition
+               this grid :without-good
+               (fn [this width height cells x y]
+                 (let [get-cell (partial get-cell this cells)
+                       n-states
+                       (ordered-neighbour-states get-cell width height x y)
 
-                   cell (get-cell [x y])
-                   s (:state cell)
-                   without-good? (fn [s] (= :without-good s))]
-               (when-not (without-good? s)
-                 (let [price (get-in env [:prices s] 0)
-                       tax (* price (get env :tax-rate 0))
-                       income (- price tax)]
-                   (swap! env-atom
-                          (fn [e]
-                            (-> e
-                                (update-in [:capital s] + income)
-                                (update-in [:capital :government] + tax))))))
-               {[x y]
-                {:state
-                 (cond
-                  (< (rand) (:depreciation env))
-                  :without-good
+                       {:keys [top-left top top-right left right
+                               bottom-left bottom bottom-right]}
+                       n-states
 
-                  (without-good? s)
-                  (weighted (user-preferences env global-share n-states))
+                       cell (get-cell [x y])
+                       s (:state cell)
+                       without-good? (fn [s] (= :without-good s))]
+                   (when-not (without-good? s)
+                     (let [price (get-in env [:prices s] 0)
+                           exp (get-in env [:expenditures-per-cell s] 0)
+                           tax (* price (get env :tax-rate 0))
+                           income (- price tax exp)]
+                       (swap! env-atom
+                              (fn [e]
+                                (-> e
+                                    (update-in [:capital s] + income)
+                                    (update-in [:capital :government]
+                                               + tax))))))
+                   {[x y]
+                    {:state
+                     (cond
+                      (< (rand) (:depreciation env))
+                      :without-good
 
-                  :else s)}})))))
+                      (without-good? s)
+                      (weighted (user-preferences env global-share n-states))
+
+                      :else s)}})))]
+          (swap! env-atom
+                 (fn [e]
+                   (update-in
+                    e [:capital :government]
+                    (fn [capital cell-count]
+                      (- capital
+                         (* cell-count
+                            (get-in env [:expenditures-per-cell :government]
+                                    0))))
+                    cell-count)))
+          (println env)
+          next))
 
       InformationChannelsSpecification
       (process-info-channel [this ic])

@@ -368,6 +368,80 @@
     (automaton-output-reset [_ data _]
       (om/transact! data (fn [d] (assoc d :result :none))))))
 
+(defn- num->percent
+  [n]
+  (str (Math/floor (* n 100)) "%"))
+
+(def market-model-customization
+  (reify
+    CellularAutomatonAppCustomization
+    (automaton-input-view [_] empty-view)
+    (automaton-input-reset [_ _])
+    (automaton-output-handler [_ data owner msg]
+      (om/transact! data (fn [d] (assoc d :market-state msg))))
+    (automaton-output-view [_]
+      (fn [data owner]
+        (let [get-market-info (fn [path] (get-in (:market-state data) path))]
+          (reify
+            om/IRender
+            (render [_]
+              (dom/div #js {:className "row"
+                            :hidden (not (contains? data :market-state))}
+                       (dom/b nil "Tax rate: ")
+                       (dom/span nil
+                         (num->percent (get-market-info [:tax-rate])))
+                       (dom/div nil)
+
+                       (dom/b nil "Utility function params: ")
+                       (dom/div nil
+                         (dom/span nil
+                           "a: " (get-market-info [:utility-params :a]))
+                         (dom/span nil
+                           " p: " (get-market-info [:utility-params :p])))
+
+                       (dom/b nil "Capital")
+                       (dom/div nil "Government: "
+                         (get-market-info [:capital :government]))
+                       (dom/div #js {:className "corp-1"} "Corporation 1: "
+                         (get-market-info [:capital :corp-1]))
+                       (dom/div #js {:className "corp-2"} "Corporation 2: "
+                         (get-market-info [:capital :corp-2]))
+                       (dom/div #js {:className "corp-3"} "Corporation 3: "
+                         (get-market-info [:capital :corp-3]))
+                       (dom/div #js {:className "corp-4"} "Corporation 4: "
+                         (get-market-info [:capital :corp-4]))
+
+                       (dom/b nil "User share")
+                       (dom/div #js {:className "without-good"}
+                         "Without good: "
+                         (num->percent
+                          (get-market-info
+                           [:global-user-share :without-good])))
+                       (dom/div #js {:className "corp-1"} "Corporation 1: "
+                         (num->percent
+                          (get-market-info [:global-user-share :corp-1])))
+                       (dom/div #js {:className "corp-2"} "Corporation 2: "
+                         (num->percent
+                          (get-market-info [:global-user-share :corp-2])))
+                       (dom/div #js {:className "corp-3"} "Corporation 3: "
+                         (num->percent
+                          (get-market-info [:global-user-share :corp-3])))
+                       (dom/div #js {:className "corp-4"} "Corporation 4: "
+                         (num->percent
+                          (get-market-info [:global-user-share :corp-4])))
+
+                       (dom/b nil "Good prices")
+                       (dom/div #js {:className "corp-1"} "Corporation 1: "
+                         (get-market-info [:prices :corp-1]))
+                       (dom/div #js {:className "corp-2"} "Corporation 2: "
+                         (get-market-info [:prices :corp-2]))
+                       (dom/div #js {:className "corp-3"} "Corporation 3: "
+                         (get-market-info [:prices :corp-3]))
+                       (dom/div #js {:className "corp-4"} "Corporation 4: "
+                         (get-market-info [:prices :corp-4]))))))))
+    (automaton-output-reset [_ data _]
+      (om/transact! data (fn [d] (dissoc d :market-state))))))
+
 
 (defn render-cellular-automaton
   [view]
@@ -397,7 +471,8 @@
         (navigation-button
          "Economic model"
          (partial render-cellular-automaton
-                  (gen-app-view a/market-model)))))))
+                  (gen-app-view
+                   a/market-model market-model-customization)))))))
 
 (defn render-menu-view
   []

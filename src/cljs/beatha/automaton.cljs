@@ -209,6 +209,19 @@
                      (* global-share
                         (Math/pow local-share a)
                         (Math/pow price p)))})
+
+        compute-global-share
+        (fn [grid]
+          (let [cell-count (* (:width grid) (:height grid))
+                cells-with-good (vals (:cells grid))
+                without-good-count (- cell-count (count cells-with-good))]
+            (->> cells-with-good
+                 (group-by :state)
+                 (merge {:without-good
+                         (repeat without-good-count {:state :without-good})})
+                 (map (fn [[k v]] [k (/ (count v) cell-count)]))
+                 (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))))
+
         user-preferences
         (fn [env global-share n-states]
           (let [{:keys [utility utility-params prices]} env
@@ -219,7 +232,6 @@
                      (group-by second)
                      (map (fn [[k v]] [k (/ (count v) neighbour-count)]))
                      (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))
-
                 utility
                 (partial utility (:a utility-params) (:p utility-params))]
             (->> available-goods
@@ -245,15 +257,9 @@
              state
             :without-good))
       (next-grid [this grid]
-        (let [cell-count (* (:width grid) (:height grid))
-              env-atom env
+        (let [env-atom env
               env @env
-              global-share
-              (->> (vals (:cells grid))
-                   (group-by :state)
-                   (map (fn [[k v]] [k (/ (count v) cell-count)]))
-                   (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))
-
+              global-share (compute-global-share grid)
               next
               (transition
                this grid :without-good
@@ -294,15 +300,17 @@
                  (fn [e]
                    (update-in
                     e [:capital :government]
-                    (fn [capital cell-count]
+                    (fn [capital]
                       (- capital
-                         (* cell-count
+                         (* (* (:width grid) (:height grid))
                             (get-in env [:expenditures-per-cell :government]
-                                    0))))
-                    cell-count)))
-          (println env)
+                                    0)))))))
           next))
 
       InformationChannelsSpecification
       (process-info-channel [this ic])
-      (fill-output-info-channel [this grid oc]))))
+      (fill-output-info-channel [this grid oc]
+        (put! oc (-> @env
+                     (dissoc :utility)
+                     (assoc :global-user-share
+                       (compute-global-share grid))))))))

@@ -60,22 +60,22 @@
     background-color: #268bd2;
 }
 
-.automaton-cell.without-good {
+.without-good {
     background-color: #859900;
 }
 
-.automaton-cell.corp-1 {
+.corp-1 {
     background-color: #268bd2;
 }
 
-.automaton-cell.corp-2 {
+.corp-2 {
     background-color: #dc322f;
 }
 
-.automaton-cell.corp-3 {
+.corp-3 {
     background-color: #545787;
 }
 
-.automaton-cell.corp-4 {
+.corp-4 {
     background-color: #d33682;
 }

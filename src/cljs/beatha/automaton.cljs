@@ -193,6 +193,14 @@
         r (rand (last w))]
     (nth (keys m) (count (take-while #(<= % r) w)))))
 
+;;; from https://groups.google.com/d/msg/clojure/UdFLYjLvNRs/NqlA7wnLCE0J
+(defn- deep-merge
+  "Recursively merges maps. If vals are not maps, the last value wins."
+  [& vals]
+  (if (every? map? vals)
+    (apply merge-with deep-merge vals)
+    (last vals)))
+
 (def market-model
   (let [env (atom {:tax-rate 0.05
                    :prices
@@ -308,7 +316,8 @@
           next))
 
       InformationChannelsSpecification
-      (process-info-channel [this ic])
+      (process-info-channel [this ic]
+        (go (while true (let [cmd (<! ic)] (swap! env deep-merge cmd)))))
       (fill-output-info-channel [this grid oc]
         (put! oc (-> @env
                      (dissoc :utility)

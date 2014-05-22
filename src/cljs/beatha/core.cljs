@@ -372,13 +372,48 @@
   [n]
   (str (Math/floor (* n 100)) "%"))
 
+(defn- normalize
+  [n min max]
+  (cond
+   (< n min) min
+   (> n max) max
+   :else     n))
+
 (def market-model-customization
   (reify
     CellularAutomatonAppCustomization
-    (automaton-input-view [_] empty-view)
+    (automaton-input-view [_]
+      (fn [data owner]
+        (reify
+          om/IRenderState
+          (render-state [_ state]
+            (let [c (:input-info-channel state)
+                  tax-rate (get-in data [:command :tax-rate])]
+              (dom/div
+               #js {:role "form" :className "economic-model-control"}
+               (dom/label nil "Tax rate (%)")
+               (dom/input
+                #js {:type "text" :className "form-control" :value tax-rate
+                     :onChange
+                     #(om/update! data [:command :tax-rate]
+                                  (.. % -target -value))})
+               (dom/button
+                #js {:type "button"
+                     :className "btn btn-success btn-lg btn-block"
+                     :onClick
+                     #(let [new-tax-rate
+                            (normalize
+                             (/ (js/parseFloat
+                                 (get-in @data [:command :tax-rate]))
+                                100)
+                             0 1.0)]
+                        (when-not (empty? tax-rate)
+                          (put! c {:tax-rate new-tax-rate})))}
+                "Send command")))))))
     (automaton-input-reset [_ _])
     (automaton-output-handler [_ data owner msg]
       (om/transact! data (fn [d] (assoc d :market-state msg))))
+
     (automaton-output-view [_]
       (fn [data owner]
         (let [get-market-info (fn [path] (get-in (:market-state data) path))]
@@ -483,3 +518,5 @@
 
 
 (render-menu-view)
+(render-cellular-automaton (gen-app-view
+                   a/market-model market-model-customization))

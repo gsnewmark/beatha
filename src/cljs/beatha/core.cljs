@@ -10,35 +10,10 @@
 (def app-state {:automaton {:grid {:width 10 :height 10 :cells {}}
                             :display {:width 600 :height 600}
                             :util {:started false}}
-                :command {}
-                :output {}})
-
-(defn automaton-view [data owner]
-  (reify
-    om/IRender
-    (render [_]
-      (println "render automaton")
-      (dom/b nil (get-in data [:grid :width])))))
-
-(defn command-view [data owner]
-  (reify
-    om/IRender
-    (render [_]
-      (println "render command")
-      (dom/input #js {:type "text"}))))
-
-(defn root-view [data owner]
-  (reify
-    om/IRender
-    (render [_]
-      (println "render parent")
-      (dom/div #js {:className "row"}
-               (dom/h2 nil "Hello")
-               (om/build command-view (:command data))
-               (om/build automaton-view (:automaton data))))))
+                :command {}})
 
 
-(defn handle-numeric-config-change
+(defn handle-int-config-change
   [e owner state key]
   (let [value (.. e -target -value)]
     (if (re-matches #"[0-9]+" value)
@@ -53,13 +28,24 @@
         :onClick f}
    text))
 
+(def ^:private empty-view
+  (fn [data owner] (reify om/IRender (render [_] (dom/span nil "")))))
+
+(defn num->percent [n] (str (Math/floor (* n 100)) "%"))
+
+(defn normalize
+  [n min max]
+  (cond
+   (< n min) min
+   (> n max) max
+   :else n))
+
 
 (defn grid-config-view
   [data owner]
   (reify
     om/IRenderState
     (render-state [_ {:keys [width height change-grid-dimensions] :as state}]
-      (println "render grid config")
       (let [started (:started data)]
         (dom/div
          #js {:role "form" :className "automaton-grid-control"}
@@ -68,13 +54,13 @@
           #js {:type "text" :className "form-control" :value width
                :disabled started
                :onChange
-               #(handle-numeric-config-change % owner state :width)})
+               #(handle-int-config-change % owner state :width)})
          (dom/label nil "Grid height")
          (dom/input
           #js {:type "text" :className "form-control" :value height
                :disabled started
                :onChange
-               #(handle-numeric-config-change % owner state :height)})
+               #(handle-int-config-change % owner state :height)})
          (dom/button
           #js {:type "button" :className "btn btn-danger btn-lg btn-block"
                :disabled started
@@ -96,13 +82,13 @@
           #js {:type "text" :className "form-control" :value width
                :disabled started
                :onChange
-               #(handle-numeric-config-change % owner state :width)})
+               #(handle-int-config-change % owner state :width)})
          (dom/label nil "Display height")
          (dom/input
           #js {:type "text" :className "form-control" :value height
                :disabled started
                :onChange
-               #(handle-numeric-config-change % owner state :height)})
+               #(handle-int-config-change % owner state :height)})
          (dom/button
           #js {:type "button" :className "btn btn-warning btn-lg btn-block"
                :disabled started
@@ -134,7 +120,6 @@
             cell-width (/ (get-in data [:display :width]) grid-width)
             cell-height (/ (get-in data [:display :height]) grid-height)
             default-cell (:default-cell state)]
-        (println "render grid")
         (apply dom/div #js {:className "automaton-grid"}
                (mapv (fn [y]
                        (apply dom/div #js {:className "automaton-row row"}
@@ -156,126 +141,361 @@
                      (range grid-height)))))))
 
 
+(defprotocol CellularAutomatonAppCustomization
+  (automaton-input-view [this]
+    "Generates Om component that renders block for sending commands to
+    automaton. Please ensure the same component is returned on each call and
+    the new one is generated (i. e., anonymous function).")
+  (automaton-input-reset [this input-info-channel]
+    "Resets any changes created by the command sent to the automata.")
+  (automaton-output-handler [this data owner msg]
+    "Handles messages posted by the cellular automaton.")
+  (automaton-output-view [this]
+    "Generates Om component that renders any changes produced by
+    the handler. Please ensure the same component is returned on each call and
+    the new one is generated (i. e., anonymous function).")
+  (automaton-output-reset [this data owner]
+    "Resets changes produced by the handler."))
+
+
 (declare render-menu-view)
 
 (defn gen-app-view
-  [automaton-spec]
-  (fn [data owner]
-    (reify
-      om/IInitState
-      (init-state [_]
-        {:change-grid-dimensions (chan)
-         :change-display-dimensions (chan)
-         :cell-state-changed (chan)
-         :started (chan)
-         :output-info-channel (chan)
-         :input-info-channel (chan)})
-      om/IWillMount
-      (will-mount [_]
-        (let [grid-c (om/get-state owner :change-grid-dimensions)
-              display-c (om/get-state owner :change-display-dimensions)
-              cell-state-c (om/get-state owner :cell-state-changed)
-              started-c (om/get-state owner :started)
-              output-info-c (om/get-state owner :output-info-channel)
-              input-info-c (om/get-state owner :input-info-channel)]
-          (go (while true
-                (alt!
-                  grid-c
-                  ([[width height]]
-                     #_(automaton-input-reset customization input-info-c)
-                     #_(automaton-output-reset customization data owner)
-                     (om/transact!
-                      data [:automaton :grid]
-                      (fn [grid]
-                        (assoc grid
-                          :width width :height height :cells {}))))
+  ([automaton-spec])
+  ([automaton-spec customization]
+     (fn [data owner]
+       (reify
+         om/IInitState
+         (init-state [_]
+           {:change-grid-dimensions (chan)
+            :change-display-dimensions (chan)
+            :cell-state-changed (chan)
+            :started (chan)
+            :output-info-channel (chan)
+            :input-info-channel (chan)})
+         om/IWillMount
+         (will-mount [_]
+           (let [grid-c (om/get-state owner :change-grid-dimensions)
+                 display-c (om/get-state owner :change-display-dimensions)
+                 cell-state-c (om/get-state owner :cell-state-changed)
+                 started-c (om/get-state owner :started)
+                 output-info-c (om/get-state owner :output-info-channel)
+                 input-info-c (om/get-state owner :input-info-channel)]
+             (a/process-info-channel automaton-spec input-info-c)
+             (go (while true
+                   (alt!
+                     grid-c
+                     ([[width height]]
+                        (automaton-input-reset customization input-info-c)
+                        (automaton-output-reset customization data owner)
+                        (om/transact!
+                         data [:automaton :grid]
+                         (fn [grid]
+                           (assoc grid
+                             :width width :height height :cells {}))))
 
-                  display-c
-                  ([[width height]]
-                     (om/transact!
-                      data [:automato :display]
-                      (fn [display]
-                        (assoc display :width width :height height))))
+                     display-c
+                     ([[width height]]
+                        (om/transact!
+                         data [:automaton :display]
+                         (fn [display]
+                           (assoc display :width width :height height))))
 
-                  cell-state-c
-                  ([[x y]]
-                     (om/transact!
-                      data [:automaton :grid :cells]
-                      (fn [grid]
-                        (let [cell (get grid [x y]
-                                        (a/default-cell automaton-spec))
-                              state (:state cell)
-                              cell (assoc cell
-                                     :state
-                                     (a/next-initial-state automaton-spec
-                                                           state))]
-                          (assoc grid [x y] cell)))))
+                     cell-state-c
+                     ([[x y]]
+                        (om/transact!
+                         data [:automaton :grid :cells]
+                         (fn [grid]
+                           (let [cell (get grid [x y]
+                                           (a/default-cell automaton-spec))
+                                 state (:state cell)
+                                 cell (assoc cell
+                                        :state
+                                        (a/next-initial-state automaton-spec
+                                                              state))]
+                             (assoc grid [x y] cell)))))
 
-                  started-c
-                  ([started]
-                     (om/update! data [:automaton :util :started] started)
-                     (if started
-                       (om/set-state!
-                        owner :update-loop-id
-                        (js/setInterval
-                         (fn []
-                           ;(om/transact! data [:automaton :grid :width] inc)
-                           (om/transact! data [:automaton :grid]
-                              (partial a/next-grid automaton-spec)))
-                         (or (om/get-state owner :animation-step) 1000)))
-                       (when-let [id (om/get-state owner :update-loop-id)]
-                         (js/clearTimeout id)))))))))
-      om/IRenderState
-      (render-state [_ state]
-        (println "render app-view")
-        (dom/div
-         #js {:className "container-liquid"}
-         (dom/div
-          #js {:className "row"}
-          (navigation-button "Menu" render-menu-view)
-          (dom/hr nil))
-         (dom/div
-          #js {:className "row"}
-          (dom/div
-           #js {:className "col-sm-2"}
-           (let [started (get-in data [:automaton :util :started])]
+                     started-c
+                     ([started]
+                        (om/update! data [:automaton :util :started] started)
+                        (if started
+                          (om/set-state!
+                           owner :update-loop-id
+                           (js/setInterval
+                            (fn []
+                              (om/transact!
+                               data
+                               [:automaton :grid]
+                               (partial a/next-grid automaton-spec))
+                              (a/fill-output-info-channel
+                               automaton-spec
+                               output-info-c
+                               (get-in @data [:automaton :grid])))
+                            (or (om/get-state owner :animation-step) 1000)))
+                          (when-let [id (om/get-state owner :update-loop-id)]
+                            (js/clearTimeout id))))
+
+                     output-info-c
+                     ([o] (automaton-output-handler
+                           customization data owner o)))))))
+         om/IRenderState
+         (render-state [_ state]
+           (dom/div
+            #js {:className "container-liquid"}
+            (dom/div
+             #js {:className "row"}
+             (navigation-button "Menu" render-menu-view)
+             (dom/hr nil))
+            (dom/div
+             #js {:className "row"}
              (dom/div
-              #js {:className "row"}
-              (dom/button
-               #js {:type "button"
-                    :className "btn btn-primary btn-lg btn-block"
-                    :onClick #(put! (:started state) (not started))}
-               (if started "Stop" "Start"))))
-           (dom/hr nil)
-           (dom/div
-            #js {:className "row"}
-            (om/build grid-config-view
-                      (get-in data [:automaton :util])
-                      {:init-state
-                       {:change-grid-dimensions
-                        (:change-grid-dimensions state)
-                        :width (get-in data [:grid :width])
-                        :height (get-in data [:grid :height])}}))
-           (dom/hr nil)
-           (dom/div
-            #js {:className "row"}
-            (om/build display-config-view
-                      (get-in data [:automaton :util])
-                      {:init-state
-                       {:change-display-dimensions
-                        (:change-display-dimensions state)
-                        :width (get-in data [:display :width])
-                        :height (get-in data [:display :height])}})))
-          (dom/div
-           #js {:className "col-sm-10"}
-           (dom/div
-            #js {:className "row"}
-            (om/build grid-view
-                      (:automaton data)
-                      {:init-state
-                       {:cell-state-changed (:cell-state-changed state)
-                        :default-cell
-                        (a/default-cell automaton-spec)}})))))))))
+              #js {:className "col-sm-2"}
+              (let [started (get-in data [:automaton :util :started])]
+                (dom/div
+                 #js {:className "row"}
+                 (dom/button
+                  #js {:type "button"
+                       :className "btn btn-primary btn-lg btn-block"
+                       :onClick #(put! (:started state) (not started))}
+                  (if started "Stop" "Start"))))
+              (dom/div
+               #js {:className "row"}
+               (om/build (automaton-output-view customization) data))
+              (dom/hr nil)
+              (dom/div
+               #js {:className "row"}
+               (om/build
+                (automaton-input-view customization)
+                (:command data)
+                {:init-state
+                 (select-keys state [:input-info-channel])}))
+              (dom/div
+               #js {:className "row"}
+               (om/build grid-config-view
+                         (get-in data [:automaton :util])
+                         {:init-state
+                          {:change-grid-dimensions
+                           (:change-grid-dimensions state)
+                           :width (get-in data [:automaton :grid :width])
+                           :height
+                           (get-in data [:automaton :grid :height])}}))
+              (dom/hr nil)
+              (dom/div
+               #js {:className "row"}
+               (om/build display-config-view
+                         (get-in data [:automaton :util])
+                         {:init-state
+                          {:change-display-dimensions
+                           (:change-display-dimensions state)
+                           :width (get-in data [:automaton :display :width])
+                           :height
+                           (get-in data [:automaton :display :height])}})))
+             (dom/div
+              #js {:className "col-sm-10"}
+              (dom/div
+               #js {:className "row"}
+               (om/build grid-view
+                         (:automaton data)
+                         {:init-state
+                          {:cell-state-changed (:cell-state-changed state)
+                           :default-cell
+                           (a/default-cell automaton-spec)}}))))))))))
+
+
+(declare unrestricted-language-parser)
+
+(defn unrestricted-language-parser-command-view
+  [data owner]
+  (reify
+    om/IRenderState
+    (render-state [_ state]
+      (let [c (:input-info-channel state)
+            a-wildcard (:a-wildcard data)
+            b-wildcard (:b-wildcard data)
+
+            wildcard-fn
+            (fn [wildcard neighbour-states cell]
+              (let [{:keys [top-left top top-right left right
+                            bottom-left bottom bottom-right]}
+                    neighbour-states]
+                (if (and (#{:a :b} (:state cell)) (= :x left)
+                         (= wildcard bottom))
+                  {:state :x}
+                  false)))
+            a-wildcard-fn (partial wildcard-fn :a)
+            b-wildcard-fn (partial wildcard-fn :b)]
+        (dom/div
+         nil
+         (dom/label nil "a as a wildcard")
+         (dom/input
+          #js {:type "checkbox"
+               :checked a-wildcard
+               :onClick
+               (fn [] (om/transact! data [:a-wildcard] not))})
+         (dom/label nil "b as a wildcard")
+         (dom/input
+          #js {:type "checkbox"
+               :checked b-wildcard
+               :onClick
+               (fn [] (om/transact! data [:b-wildcard] not))})
+         (dom/button
+          #js {:type "button"
+               :className "btn btn-success btn-lg btn-block"
+               :onClick
+               #(cond
+                 (and b-wildcard (not a-wildcard))
+                 (put! c {:command b-wildcard-fn})
+
+                 (and a-wildcard (not b-wildcard))
+                 (put! c {:command a-wildcard-fn})
+
+                 (and a-wildcard b-wildcard)
+                 (put! c {:command
+                          (fn [neigbours s]
+                            (if-let [a-res (a-wildcard-fn neigbours s)]
+                              a-res
+                              (b-wildcard-fn neigbours s)))})
+
+                 :else (fn [_ _] false))}
+          "Send command")
+         (dom/button
+          #js {:type "button"
+               :className "btn btn-info btn-lg btn-block"
+               :onClick
+               #(automaton-input-reset unrestricted-language-parser c)}
+          "Reset command")
+         (dom/hr nil))))))
+
+(defn unrestricted-language-parser-output-view
+  [data _]
+  (reify
+    om/IRender
+    (render [_]
+      (dom/div
+       #js {:className "row"
+            :hidden (not (#{:success :failure} (:result data)))}
+       (dom/h2
+        nil
+        "Result: " (if (= :success (:result data))
+                     "word is parsed"
+                     "word is not parsed"))))))
+
+(def unrestricted-language-parser-customization
+  (reify
+    CellularAutomatonAppCustomization
+    (automaton-input-view [this] unrestricted-language-parser-command-view)
+    (automaton-input-reset [_ input-channel] (put! input-channel {}))
+    (automaton-output-handler [_ data owner {:keys [s f]}]
+      (when (or (> s 0) (> f 0))
+        (om/transact!
+         data (fn [d] (assoc d :result (if (> s 0) :success :failure))))
+        (put! (om/get-state owner :started) false)))
+    (automaton-output-view [_] unrestricted-language-parser-output-view)
+    (automaton-output-reset [_ data _]
+      (om/transact! data (fn [d] (assoc d :result :none))))))
+
+
+(defn market-command-view
+  [data owner]
+  (reify
+    om/IRenderState
+    (render-state [_ {:keys [tax-rate input-info-channel] :as state}]
+      (dom/div
+       #js {:role "form" :className "economic-model-control"}
+       (dom/label nil "Tax rate (%)")
+       (dom/input
+        #js {:type "text" :className "form-control" :value tax-rate
+             :onChange
+             #(handle-int-config-change % owner state :tax-rate)})
+       (dom/button
+        #js {:type "button"
+             :className "btn btn-success btn-lg btn-block"
+             :onClick
+             #(when-let [new-tax-rate
+                         (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)]
+                (put! input-info-channel {:tax-rate new-tax-rate}))}
+        "Send command")))))
+
+(defn market-output-view
+  [data owner]
+  (let [get-market-info (fn [path] (get-in data (cons :market-state path)))]
+    (reify
+      om/IRender
+      (render [_]
+        (dom/div
+         #js {:className "row"
+              :hidden (not (contains? data :market-state))}
+         (dom/b nil "Tax rate: ")
+         (dom/span
+          nil
+          (num->percent (get-market-info [:tax-rate])))
+         (dom/div nil)
+
+         (dom/b nil "Utility function params: ")
+         (dom/div
+          nil
+          (dom/span nil "a: " (get-market-info [:utility-params :a]))
+          (dom/span nil " p: " (get-market-info [:utility-params :p])))
+
+         (dom/b nil "Capital")
+         (dom/div
+          nil
+          "Government: " (get-market-info [:capital :government]))
+         (dom/div
+          #js {:className "corp-1"} "Corporation 1: "
+          (get-market-info [:capital :corp-1]))
+         (dom/div
+          #js {:className "corp-2"} "Corporation 2: "
+          (get-market-info [:capital :corp-2]))
+         (dom/div
+          #js {:className "corp-3"} "Corporation 3: "
+          (get-market-info [:capital :corp-3]))
+         (dom/div
+          #js {:className "corp-4"} "Corporation 4: "
+          (get-market-info [:capital :corp-4]))
+
+         (dom/b nil "Market share")
+         (dom/div
+          #js {:className "without-good"}
+          "Without good: "
+          (num->percent (get-market-info [:global-user-share :without-good])))
+         (dom/div
+          #js {:className "corp-1"} "Corporation 1: "
+          (num->percent (get-market-info [:global-user-share :corp-1])))
+         (dom/div
+          #js {:className "corp-2"} "Corporation 2: "
+          (num->percent (get-market-info [:global-user-share :corp-2])))
+         (dom/div
+          #js {:className "corp-3"} "Corporation 3: "
+          (num->percent (get-market-info [:global-user-share :corp-3])))
+         (dom/div
+          #js {:className "corp-4"} "Corporation 4: "
+          (num->percent (get-market-info [:global-user-share :corp-4])))
+
+         (dom/b nil "Good prices")
+         (dom/div
+          #js {:className "corp-1"} "Corporation 1: "
+          (get-market-info [:prices :corp-1]))
+         (dom/div
+          #js {:className "corp-2"} "Corporation 2: "
+          (get-market-info [:prices :corp-2]))
+         (dom/div
+          #js {:className "corp-3"} "Corporation 3: "
+          (get-market-info [:prices :corp-3]))
+         (dom/div
+          #js {:className "corp-4"} "Corporation 4: "
+          (get-market-info [:prices :corp-4])))))))
+
+(def market-model-customization
+  (reify
+    CellularAutomatonAppCustomization
+    (automaton-input-view [_] market-command-view)
+    (automaton-input-reset [_ _])
+    (automaton-output-handler [_ data owner msg]
+      (om/transact! data (fn [d] (assoc d :market-state msg))))
+    (automaton-output-view [_] market-output-view)
+    (automaton-output-reset [_ data _]
+      (om/transact! data (fn [d] (dissoc d :market-state))))))
 
 
 (defn render-cellular-automaton
@@ -298,13 +518,13 @@
         (navigation-button
          "Game of Life"
          (partial render-cellular-automaton (gen-app-view a/game-of-life)))
-        #_(navigation-button
+        (navigation-button
          "Unrestricted language parser"
          (partial render-cellular-automaton
                   (gen-app-view
                    a/unrestricted-language-parser
                    unrestricted-language-parser-customization)))
-        #_(navigation-button
+        (navigation-button
          "Economic model"
          (partial render-cellular-automaton
                   (gen-app-view
@@ -316,5 +536,3 @@
    menu-view
    app-state
    {:target (. js/document (getElementById "app"))}))
-
-(render-cellular-automaton (gen-app-view a/game-of-life))

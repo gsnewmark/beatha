@@ -22,7 +22,7 @@
       information about current state."
   (process-info-channel [this ic]
     "Handles messages from the input information channel.")
-  (fill-output-info-channel [this grid oc]
+  (fill-output-info-channel [this oc grid]
     "Sends a message about the current automata's state."))
 
 ;;; State of world is described as a set of living cells, where each cell is
@@ -69,7 +69,7 @@
 
     InformationChannelsSpecification
     (process-info-channel [this ic])
-    (fill-output-info-channel [this grid oc])))
+    (fill-output-info-channel [this oc grid])))
 
 (def game-of-life
   (reify
@@ -177,7 +177,7 @@
       InformationChannelsSpecification
       (process-info-channel [this ic]
         (go (while true (let [cmd (<! ic)] (reset! ext-command cmd)))))
-      (fill-output-info-channel [this grid oc]
+      (fill-output-info-channel [this oc grid]
         (put! oc (->> grid
                       :cells
                       vals
@@ -318,7 +318,7 @@
       InformationChannelsSpecification
       (process-info-channel [this ic]
         (go (while true (let [cmd (<! ic)] (swap! env deep-merge cmd)))))
-      (fill-output-info-channel [this grid oc]
+      (fill-output-info-channel [this oc grid]
         (put! oc (-> @env
                      (dissoc :utility)
                      (assoc :global-user-share

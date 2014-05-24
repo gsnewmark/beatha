@@ -142,11 +142,11 @@
 
 
 (defprotocol CellularAutomatonAppCustomization
-  (automaton-input-view [this]
+  (automaton-command-view [this]
     "Generates Om component that renders block for sending commands to
     automaton. Please ensure the same component is returned on each call and
     the new one is generated (i. e., anonymous function).")
-  (automaton-input-reset [this input-info-channel]
+  (automaton-command-reset [this command-info-channel]
     "Resets any changes created by the command sent to the automata.")
   (automaton-output-handler [this data owner msg]
     "Handles messages posted by the cellular automaton.")
@@ -172,7 +172,7 @@
             :cell-state-changed (chan)
             :started (chan)
             :output-info-channel (chan)
-            :input-info-channel (chan)})
+            :command-info-channel (chan)})
          om/IWillMount
          (will-mount [_]
            (let [grid-c (om/get-state owner :change-grid-dimensions)
@@ -180,13 +180,13 @@
                  cell-state-c (om/get-state owner :cell-state-changed)
                  started-c (om/get-state owner :started)
                  output-info-c (om/get-state owner :output-info-channel)
-                 input-info-c (om/get-state owner :input-info-channel)]
-             (a/process-info-channel automaton-spec input-info-c)
+                 command-info-c (om/get-state owner :command-info-channel)]
+             (a/process-command-channel automaton-spec command-info-c)
              (go (while true
                    (alt!
                      grid-c
                      ([[width height]]
-                        (automaton-input-reset customization input-info-c)
+                        (automaton-command-reset customization command-info-c)
                         (automaton-output-reset customization data owner)
                         (om/transact!
                          data [:automaton :grid]
@@ -265,10 +265,9 @@
               (dom/div
                #js {:className "row"}
                (om/build
-                (automaton-input-view customization)
+                (automaton-command-view customization)
                 (:command data)
-                {:init-state
-                 (select-keys state [:input-info-channel])}))
+                {:init-state (select-keys state [:command-info-channel])}))
               (dom/div
                #js {:className "row"}
                (om/build grid-config-view
@@ -309,7 +308,7 @@
   (reify
     om/IRenderState
     (render-state [_ state]
-      (let [c (:input-info-channel state)
+      (let [c (:command-info-channel state)
             a-wildcard (:a-wildcard data)
             b-wildcard (:b-wildcard data)
 
@@ -362,7 +361,7 @@
           #js {:type "button"
                :className "btn btn-info btn-lg btn-block"
                :onClick
-               #(automaton-input-reset unrestricted-language-parser c)}
+               #(automaton-command-reset unrestricted-language-parser c)}
           "Reset command")
          (dom/hr nil))))))
 
@@ -383,8 +382,8 @@
 (def unrestricted-language-parser-customization
   (reify
     CellularAutomatonAppCustomization
-    (automaton-input-view [this] unrestricted-language-parser-command-view)
-    (automaton-input-reset [_ input-channel] (put! input-channel {}))
+    (automaton-command-view [this] unrestricted-language-parser-command-view)
+    (automaton-command-reset [_ input-channel] (put! input-channel {}))
     (automaton-output-handler [_ data owner {:keys [s f]}]
       (when (or (> s 0) (> f 0))
         (om/transact!
@@ -399,7 +398,7 @@
   [data owner]
   (reify
     om/IRenderState
-    (render-state [_ {:keys [tax-rate input-info-channel] :as state}]
+    (render-state [_ {:keys [tax-rate command-info-channel] :as state}]
       (dom/div
        #js {:role "form" :className "economic-model-control"}
        (dom/label nil "Tax rate (%)")
@@ -413,7 +412,7 @@
              :onClick
              #(when-let [new-tax-rate
                          (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)]
-                (put! input-info-channel {:tax-rate new-tax-rate}))}
+                (put! command-info-channel {:tax-rate new-tax-rate}))}
         "Send command")))))
 
 (defn market-output-view
@@ -489,8 +488,8 @@
 (def market-model-customization
   (reify
     CellularAutomatonAppCustomization
-    (automaton-input-view [_] market-command-view)
-    (automaton-input-reset [_ _])
+    (automaton-command-view [_] market-command-view)
+    (automaton-command-reset [_ _])
     (automaton-output-handler [_ data owner msg]
       (om/transact! data (fn [d] (assoc d :market-state msg))))
     (automaton-output-view [_] market-output-view)
@@ -536,3 +535,5 @@
    menu-view
    app-state
    {:target (. js/document (getElementById "app"))}))
+
+(render-menu-view)

@@ -16,13 +16,13 @@
   "Describes interactions with information channels which augment the regular
   cellular automata:
 
-    - input channel is a source of external commands which augment rules of
+    - command channel is a source of external commands which augment rules of
       automata;
     - output channel is filled by the automata itself with aggregate
       information about current state."
-  (process-info-channel [this ic]
-    "Handles messages from the input information channel.")
-  (fill-output-info-channel [this grid oc]
+  (process-command-channel [this ic]
+    "Handles messages from the command information channel.")
+  (fill-output-info-channel [this oc grid]
     "Sends a message about the current automata's state."))
 
 ;;; State of world is described as a set of living cells, where each cell is
@@ -68,8 +68,8 @@
     (next-grid [_ grid] grid)
 
     InformationChannelsSpecification
-    (process-info-channel [this ic])
-    (fill-output-info-channel [this grid oc])))
+    (process-command-channel [this ic])
+    (fill-output-info-channel [this oc grid])))
 
 (def game-of-life
   (reify
@@ -97,7 +97,7 @@
              :else                             cell)}))))
 
     InformationChannelsSpecification
-    (process-info-channel [this ic])
+    (process-command-channel [this ic])
     (fill-output-info-channel [this grid oc])))
 
 (defn- get-cell [this cells coords] (get cells coords (default-cell this)))
@@ -175,9 +175,9 @@
                     :else                                          s)})}))))
 
       InformationChannelsSpecification
-      (process-info-channel [this ic]
+      (process-command-channel [this ic]
         (go (while true (let [cmd (<! ic)] (reset! ext-command cmd)))))
-      (fill-output-info-channel [this grid oc]
+      (fill-output-info-channel [this oc grid]
         (put! oc (->> grid
                       :cells
                       vals
@@ -316,9 +316,9 @@
           next))
 
       InformationChannelsSpecification
-      (process-info-channel [this ic]
+      (process-command-channel [this ic]
         (go (while true (let [cmd (<! ic)] (swap! env deep-merge cmd)))))
-      (fill-output-info-channel [this grid oc]
+      (fill-output-info-channel [this oc grid]
         (put! oc (-> @env
                      (dissoc :utility)
                      (assoc :global-user-share

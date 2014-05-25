@@ -434,7 +434,8 @@
          (dom/div
           nil
           (dom/span nil "a: " (get-market-info [:utility-params :a]))
-          (dom/span nil " p: " (get-market-info [:utility-params :p])))
+          (dom/span nil " p: " (get-market-info [:utility-params :p]))
+          (dom/span nil " q: " (get-market-info [:utility-params :q])))
 
          (dom/b nil "Capital")
          (dom/div
@@ -483,7 +484,21 @@
           (get-market-info [:prices :corp-3]))
          (dom/div
           #js {:className "corp-4"} "Corporation 4: "
-          (get-market-info [:prices :corp-4])))))))
+          (get-market-info [:prices :corp-4]))
+
+         (dom/b nil "Good quality")
+         (dom/div
+          #js {:className "corp-1"} "Corporation 1: "
+          (get-market-info [:quality :corp-1]))
+         (dom/div
+          #js {:className "corp-2"} "Corporation 2: "
+          (get-market-info [:quality :corp-2]))
+         (dom/div
+          #js {:className "corp-3"} "Corporation 3: "
+          (get-market-info [:quality :corp-3]))
+         (dom/div
+          #js {:className "corp-4"} "Corporation 4: "
+          (get-market-info [:quality :corp-4])))))))
 
 (def market-model-customization
   (reify

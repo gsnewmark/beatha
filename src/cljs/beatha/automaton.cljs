@@ -205,18 +205,21 @@
   (let [env (atom {:tax-rate 0.05
                    :prices
                    {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
+                   :quality
+                   {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
                    :capital
                    {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 1000}
                    :expenditures-per-cell
                    {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
                    :depreciation 0.03
                    :utility-params
-                   {:a 1 :p -1}
+                   {:a 1 :p -1 :q 0}
                    :utility
-                   (fn [a p price global-share local-share]
+                   (fn [a p q price quality global-share local-share]
                      (* global-share
                         (Math/pow local-share a)
-                        (Math/pow price p)))})
+                        (Math/pow price p)
+                        (Math/pow quality q)))})
 
         compute-global-share
         (fn [grid]
@@ -232,7 +235,7 @@
 
         user-preferences
         (fn [env global-share n-states]
-          (let [{:keys [utility utility-params prices]} env
+          (let [{:keys [utility utility-params prices quality]} env
                 available-goods (keys prices)
                 neighbour-count (count n-states)
                 local-share
@@ -241,11 +244,15 @@
                      (map (fn [[k v]] [k (/ (count v) neighbour-count)]))
                      (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))
                 utility
-                (partial utility (:a utility-params) (:p utility-params))]
+                (partial utility
+                         (:a utility-params)
+                         (:p utility-params)
+                         (:q utility-params))]
             (->> available-goods
                  (map
                   (fn [g]
                     [g (utility (prices g)
+                                (quality g)
                                 (global-share g)
                                 (local-share g))]))
                  ((fn [p]

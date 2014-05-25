@@ -201,25 +201,31 @@
     (apply merge-with deep-merge vals)
     (last vals)))
 
+(def market-model-default-params
+  {:tax-rate 0.05
+   :expenditures-per-cell
+   {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
+   :depreciation 0.03
+   :utility-params
+   {:a 1 :p -1 :q 0}
+   :utility
+   (fn [a p q price quality global-share local-share]
+     (* global-share
+        (Math/pow local-share a)
+        (Math/pow price p)
+        (Math/pow quality q)))})
+
+(def market-model-default-state
+  (merge market-model-default-params
+         {:prices
+          {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
+          :quality
+          {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
+          :capital
+          {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 1000}}))
+
 (def market-model
-  (let [env (atom {:tax-rate 0.05
-                   :prices
-                   {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
-                   :quality
-                   {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
-                   :capital
-                   {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 1000}
-                   :expenditures-per-cell
-                   {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
-                   :depreciation 0.03
-                   :utility-params
-                   {:a 1 :p -1 :q 0}
-                   :utility
-                   (fn [a p q price quality global-share local-share]
-                     (* global-share
-                        (Math/pow local-share a)
-                        (Math/pow price p)
-                        (Math/pow quality q)))})
+  (let [env (atom market-model-default-state)
 
         compute-global-share
         (fn [grid]

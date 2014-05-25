@@ -301,7 +301,7 @@
                            (a/default-cell automaton-spec)}}))))))))))
 
 
-(declare unrestricted-language-parser)
+(declare unrestricted-language-parser-customization)
 
 (defn unrestricted-language-parser-command-view
   [data owner]
@@ -361,7 +361,8 @@
           #js {:type "button"
                :className "btn btn-info btn-lg btn-block"
                :onClick
-               #(automaton-command-reset unrestricted-language-parser c)}
+               #(automaton-command-reset
+                 unrestricted-language-parser-customization c)}
           "Reset command")
          (dom/hr nil))))))
 
@@ -398,22 +399,44 @@
   [data owner]
   (reify
     om/IRenderState
-    (render-state [_ {:keys [tax-rate command-info-channel] :as state}]
+    (render-state [_ {:keys [tax-rate depreciation command-info-channel]
+                      :as state}]
       (dom/div
        #js {:role "form" :className "economic-model-control"}
+
        (dom/label nil "Tax rate (%)")
        (dom/input
         #js {:type "text" :className "form-control" :value tax-rate
              :onChange
              #(handle-int-config-change % owner state :tax-rate)})
+
+       (dom/label nil "Depreciation rate (%)")
+       (dom/input
+        #js {:type "text" :className "form-control" :value depreciation
+             :onChange
+             #(handle-int-config-change % owner state :depreciation)})
+
        (dom/button
         #js {:type "button"
              :className "btn btn-success btn-lg btn-block"
              :onClick
-             #(when-let [new-tax-rate
-                         (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)]
-                (put! command-info-channel {:tax-rate new-tax-rate}))}
-        "Send command")))))
+             #(->> {:tax-rate
+                    (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)
+                    :depreciation
+                    (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)}
+                   (filter (fn [[k v]] (not (js/isNaN v))))
+                   (into {})
+                   (put! command-info-channel))}
+        "Send command")
+
+       (dom/button
+          #js {:type "button"
+               :className "btn btn-info btn-lg btn-block"
+               :onClick
+               #(put! command-info-channel a/market-model-default-params)}
+          "Reset command")
+
+       (dom/hr nil)))))
 
 (defn market-output-view
   [data owner]
@@ -428,6 +451,12 @@
          (dom/span
           nil
           (num->percent (get-market-info [:tax-rate])))
+         (dom/div nil)
+
+         (dom/b nil "Depreciation rate: ")
+         (dom/span
+          nil
+          (num->percent (get-market-info [:depreciation])))
          (dom/div nil)
 
          (dom/b nil "Utility function params: ")
@@ -504,7 +533,8 @@
   (reify
     CellularAutomatonAppCustomization
     (automaton-command-view [_] market-command-view)
-    (automaton-command-reset [_ _])
+    (automaton-command-reset [_ command-channel]
+      (put! command-channel a/market-model-default-state))
     (automaton-output-handler [_ data owner msg]
       (om/transact! data (fn [d] (assoc d :market-state msg))))
     (automaton-output-view [_] market-output-view)

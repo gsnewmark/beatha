@@ -16,8 +16,15 @@
 (defn handle-int-config-change
   [e owner state key]
   (let [value (.. e -target -value)]
-    (if (re-matches #"[0-9]+" value)
+    (if (re-matches #"-?[0-9]+" value)
       (om/set-state! owner key (js/parseInt value))
+      (om/set-state! owner key (get state key)))))
+
+(defn handle-float-config-change
+  [e owner state key]
+  (let [value (.. e -target -value)]
+    (if (re-matches #"-?[0-9]+(\\.[0-9]+)?" value)
+      (om/set-state! owner key (js/parseFloat value))
       (om/set-state! owner key (get state key)))))
 
 (defn navigation-button
@@ -39,6 +46,8 @@
    (< n min) min
    (> n max) max
    :else n))
+
+(defn is-number? [v] (not (js/isNaN v)))
 
 
 (defn grid-config-view
@@ -399,7 +408,7 @@
   [data owner]
   (reify
     om/IRenderState
-    (render-state [_ {:keys [tax-rate depreciation command-info-channel]
+    (render-state [_ {:keys [tax-rate depreciation a p q command-info-channel]
                       :as state}]
       (dom/div
        #js {:role "form" :className "economic-model-control"}
@@ -416,6 +425,21 @@
              :onChange
              #(handle-int-config-change % owner state :depreciation)})
 
+       (dom/label nil "Utilty param a")
+       (dom/input
+        #js {:type "text" :className "form-control" :value a
+             :onChange #(handle-float-config-change % owner state :a)})
+
+       (dom/label nil "Utilty param p")
+       (dom/input
+        #js {:type "text" :className "form-control" :value p
+             :onChange #(handle-float-config-change % owner state :p)})
+
+       (dom/label nil "Utilty param q")
+       (dom/input
+        #js {:type "text" :className "form-control" :value q
+             :onChange #(handle-float-config-change % owner state :q)})
+
        (dom/button
         #js {:type "button"
              :className "btn btn-success btn-lg btn-block"
@@ -424,8 +448,14 @@
                     (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)
                     :depreciation
                     (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)}
-                   (filter (fn [[k v]] (not (js/isNaN v))))
+                   (filter (comp is-number? second))
                    (into {})
+                   (merge
+                    {:utility-params (->> {:a (js/parseFloat a)
+                                           :p (js/parseFloat p)
+                                           :q (js/parseFloat q)}
+                                          (filter (comp is-number? second))
+                                          (into {}))})
                    (put! command-info-channel))}
         "Send command")
 

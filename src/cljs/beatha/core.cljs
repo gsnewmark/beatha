@@ -170,7 +170,15 @@
 (declare render-menu-view)
 
 (defn gen-app-view
-  ([automaton-spec])
+  ([automaton-spec]
+     (gen-app-view automaton-spec
+                   (reify
+                     CellularAutomatonAppCustomization
+                     (automaton-command-view [_] empty-view)
+                     (automaton-command-reset [_ _])
+                     (automaton-output-handler [_ _ _ _])
+                     (automaton-output-view [_] empty-view)
+                     (automaton-output-reset [_ _ _]))))
   ([automaton-spec customization]
      (fn [data owner]
        (reify

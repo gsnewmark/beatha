@@ -408,7 +408,8 @@
   [data owner]
   (reify
     om/IRenderState
-    (render-state [_ {:keys [tax-rate depreciation a p q command-info-channel]
+    (render-state [_ {:keys [tax-rate fixed-tax depreciation
+                             a p q command-info-channel]
                       :as state}]
       (dom/div
        #js {:role "form" :className "economic-model-control"}
@@ -416,8 +417,12 @@
        (dom/label nil "Tax rate (%)")
        (dom/input
         #js {:type "text" :className "form-control" :value tax-rate
-             :onChange
-             #(handle-int-config-change % owner state :tax-rate)})
+             :onChange #(handle-int-config-change % owner state :tax-rate)})
+
+       (dom/label nil "Fixed tax")
+       (dom/input
+        #js {:type "text" :className "form-control" :value fixed-tax
+             :onChange #(handle-int-config-change % owner state :fixed-tax)})
 
        (dom/label nil "Depreciation rate (%)")
        (dom/input
@@ -447,7 +452,8 @@
              #(->> {:tax-rate
                     (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)
                     :depreciation
-                    (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)}
+                    (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)
+                    :fixed-tax (js/parseInt fixed-tax)}
                    (filter (comp is-number? second))
                    (into {})
                    (merge
@@ -481,6 +487,10 @@
          (dom/span
           nil
           (num->percent (get-market-info [:tax-rate])))
+         (dom/div nil)
+
+         (dom/b nil "Fixed tax: ")
+         (dom/span nil (get-market-info [:fixed-tax]))
          (dom/div nil)
 
          (dom/b nil "Depreciation rate: ")

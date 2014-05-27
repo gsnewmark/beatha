@@ -203,6 +203,7 @@
 
 (def market-model-default-params
   {:tax-rate 0.05
+   :fixed-tax 20
    :expenditures-per-cell
    {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
    :depreciation 0.03
@@ -300,7 +301,8 @@
                      (let [price (get-in env [:prices s] 0)
                            exp (get-in env [:expenditures-per-cell s] 0)
                            tax (* price (get env :tax-rate 0))
-                           income (- price tax exp)]
+                           fixed-tax (get env :fixed-tax 0)
+                           income (- price tax exp fixed-tax)]
                        (swap! env-atom
                               (fn [e]
                                 (-> e

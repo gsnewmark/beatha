@@ -628,10 +628,13 @@
     (automaton-command-view [_] market-command-view)
     (automaton-command-initial-state [_]
       (let [params a/market-model-default-params]
-        (merge (select-keys params [:fixed-tax :depreciation :taxation-type])
+        (merge (select-keys params [:fixed-tax :taxation-type])
                (:utility-params params)
                {:tax-rate
-                (apply str (butlast (num->percent (:tax-rate params))))})))
+                (apply str (butlast (num->percent (:tax-rate params))))
+                :depreciation
+                (apply str
+                       (butlast (num->percent (:depreciation params))))})))
     (automaton-command-reset [_ command-channel]
       (put! command-channel a/market-model-default-state))
     (automaton-output-handler [_ data owner msg]

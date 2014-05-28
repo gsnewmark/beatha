@@ -49,6 +49,11 @@
 
 (defn is-number? [v] (not (js/isNaN v)))
 
+(defn keyword->str
+  [k]
+  (when (keyword? k)
+    (.substr (str k) 1)))
+
 
 (defn grid-config-view
   [data owner]
@@ -155,6 +160,8 @@
     "Generates Om component that renders block for sending commands to
     automaton. Please ensure the same component is returned on each call and
     the new one is generated (i. e., anonymous function).")
+  (automaton-command-initial-state [this]
+    "Returns the default stated for the command view.")
   (automaton-command-reset [this command-info-channel]
     "Resets any changes created by the command sent to the automata.")
   (automaton-output-handler [this data owner msg]
@@ -175,6 +182,7 @@
                    (reify
                      CellularAutomatonAppCustomization
                      (automaton-command-view [_] empty-view)
+                     (automaton-command-initial-state [_] {})
                      (automaton-command-reset [_ _])
                      (automaton-output-handler [_ _ _ _])
                      (automaton-output-view [_] empty-view)
@@ -284,7 +292,10 @@
                (om/build
                 (automaton-command-view customization)
                 (:command data)
-                {:init-state (select-keys state [:command-info-channel])}))
+                {:init-state
+                 (merge
+                  (select-keys state [:command-info-channel])
+                  (automaton-command-initial-state customization))}))
               (dom/div
                #js {:className "row"}
                (om/build grid-config-view
@@ -401,6 +412,7 @@
   (reify
     CellularAutomatonAppCustomization
     (automaton-command-view [this] unrestricted-language-parser-command-view)
+    (automaton-command-initial-state [_] {})
     (automaton-command-reset [_ input-channel] (put! input-channel {}))
     (automaton-output-handler [_ data owner {:keys [s f]}]
       (when (or (> s 0) (> f 0))
@@ -417,20 +429,43 @@
   (reify
     om/IRenderState
     (render-state [_ {:keys [tax-rate fixed-tax depreciation
-                             a p q command-info-channel]
+                             a p q command-info-channel
+                             taxation-type]
                       :as state}]
       (dom/div
        #js {:role "form" :className "economic-model-control"}
 
-       (dom/label nil "Tax rate (%)")
-       (dom/input
-        #js {:type "text" :className "form-control" :value tax-rate
-             :onChange #(handle-int-config-change % owner state :tax-rate)})
+       (dom/label nil "Taxation type")
+       (dom/div
+        #js {:className "radio"}
+        (dom/input
+         #js {:type "radio" :name "taxation-type" :value "rate"
+              :checked (= :rate taxation-type)
+              :onChange #(om/set-state! owner :taxation-type :rate)}
+         "Rate"))
+       (dom/div
+        #js {:className "radio"}
+        (dom/input
+         #js {:type "radio" :name "taxation-type" :value "fixed"
+              :checked (= :fixed taxation-type)
+              :onChange #(om/set-state! owner :taxation-type :fixed)}
+         "Fixed"))
 
-       (dom/label nil "Fixed tax")
-       (dom/input
-        #js {:type "text" :className "form-control" :value fixed-tax
-             :onChange #(handle-int-config-change % owner state :fixed-tax)})
+       (dom/span
+        #js {:hidden (not= :rate taxation-type)}
+        (dom/label nil "Tax rate (%)")
+        (dom/input
+         #js {:type "text" :className "form-control" :value tax-rate
+              :onChange
+              #(handle-int-config-change % owner state :tax-rate)}))
+
+       (dom/span
+        #js {:hidden (not= :fixed taxation-type)}
+        (dom/label nil "Fixed tax")
+        (dom/input
+         #js {:type "text" :className "form-control" :value fixed-tax
+              :onChange
+              #(handle-int-config-change % owner state :fixed-tax)}))
 
        (dom/label nil "Depreciation rate (%)")
        (dom/input
@@ -463,7 +498,7 @@
                     (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)
                     :fixed-tax (js/parseInt fixed-tax)}
                    (filter (comp is-number? second))
-                   (into {})
+                   (into {:taxation-type taxation-type})
                    (merge
                     {:utility-params (->> {:a (js/parseFloat a)
                                            :p (js/parseFloat p)
@@ -474,11 +509,11 @@
         "Send command")
 
        (dom/button
-          #js {:type "button"
-               :className "btn btn-info btn-lg btn-block"
-               :onClick
-               #(put! command-info-channel a/market-model-default-params)}
-          "Reset command")
+        #js {:type "button"
+             :className "btn btn-info btn-lg btn-block"
+             :onClick
+             #(put! command-info-channel a/market-model-default-params)}
+        "Reset command")
 
        (dom/hr nil)))))
 
@@ -488,99 +523,115 @@
     (reify
       om/IRender
       (render [_]
-        (dom/div
-         #js {:className "row"
-              :hidden (not (contains? data :market-state))}
-         (dom/b nil "Tax rate: ")
-         (dom/span
-          nil
-          (num->percent (get-market-info [:tax-rate])))
-         (dom/div nil)
+        (let [taxation-type (get-market-info [:taxation-type])]
+          (dom/div
+           #js {:className "row"
+                :hidden (not (contains? data :market-state))}
+           (dom/b nil "Taxation type: ")
+           (dom/span nil (keyword->str taxation-type))
+           (dom/div nil)
 
-         (dom/b nil "Fixed tax: ")
-         (dom/span nil (get-market-info [:fixed-tax]))
-         (dom/div nil)
+           (dom/span
+            #js {:hidden (not= :rate taxation-type)}
+            (dom/b nil "Tax rate: ")
+            (dom/span
+             nil
+             (num->percent (get-market-info [:tax-rate])))
+            (dom/div nil))
 
-         (dom/b nil "Depreciation rate: ")
-         (dom/span
-          nil
-          (num->percent (get-market-info [:depreciation])))
-         (dom/div nil)
+           (dom/span
+            #js {:hidden (not= :fixed taxation-type)}
+            (dom/b nil "Fixed tax: ")
+            (dom/span nil (get-market-info [:fixed-tax]))
+            (dom/div nil))
 
-         (dom/b nil "Utility function params: ")
-         (dom/div
-          nil
-          (dom/span nil "a: " (get-market-info [:utility-params :a]))
-          (dom/span nil " p: " (get-market-info [:utility-params :p]))
-          (dom/span nil " q: " (get-market-info [:utility-params :q])))
+           (dom/b nil "Depreciation rate: ")
+           (dom/span
+            nil
+            (num->percent (get-market-info [:depreciation])))
+           (dom/div nil)
 
-         (dom/b nil "Capital")
-         (dom/div
-          nil
-          "Government: " (get-market-info [:capital :government]))
-         (dom/div
-          #js {:className "corp-1"} "Corporation 1: "
-          (get-market-info [:capital :corp-1]))
-         (dom/div
-          #js {:className "corp-2"} "Corporation 2: "
-          (get-market-info [:capital :corp-2]))
-         (dom/div
-          #js {:className "corp-3"} "Corporation 3: "
-          (get-market-info [:capital :corp-3]))
-         (dom/div
-          #js {:className "corp-4"} "Corporation 4: "
-          (get-market-info [:capital :corp-4]))
+           (dom/b nil "Utility function params: ")
+           (dom/div
+            nil
+            (dom/span nil "a: " (get-market-info [:utility-params :a]))
+            (dom/span nil " p: " (get-market-info [:utility-params :p]))
+            (dom/span nil " q: " (get-market-info [:utility-params :q])))
 
-         (dom/b nil "Market share")
-         (dom/div
-          #js {:className "without-good"}
-          "Without good: "
-          (num->percent (get-market-info [:global-user-share :without-good])))
-         (dom/div
-          #js {:className "corp-1"} "Corporation 1: "
-          (num->percent (get-market-info [:global-user-share :corp-1])))
-         (dom/div
-          #js {:className "corp-2"} "Corporation 2: "
-          (num->percent (get-market-info [:global-user-share :corp-2])))
-         (dom/div
-          #js {:className "corp-3"} "Corporation 3: "
-          (num->percent (get-market-info [:global-user-share :corp-3])))
-         (dom/div
-          #js {:className "corp-4"} "Corporation 4: "
-          (num->percent (get-market-info [:global-user-share :corp-4])))
+           (dom/b nil "Capital")
+           (dom/div
+            nil
+            "Government: " (get-market-info [:capital :government]))
+           (dom/div
+            #js {:className "corp-1"} "Corporation 1: "
+            (get-market-info [:capital :corp-1]))
+           (dom/div
+            #js {:className "corp-2"} "Corporation 2: "
+            (get-market-info [:capital :corp-2]))
+           (dom/div
+            #js {:className "corp-3"} "Corporation 3: "
+            (get-market-info [:capital :corp-3]))
+           (dom/div
+            #js {:className "corp-4"} "Corporation 4: "
+            (get-market-info [:capital :corp-4]))
 
-         (dom/b nil "Good prices")
-         (dom/div
-          #js {:className "corp-1"} "Corporation 1: "
-          (get-market-info [:prices :corp-1]))
-         (dom/div
-          #js {:className "corp-2"} "Corporation 2: "
-          (get-market-info [:prices :corp-2]))
-         (dom/div
-          #js {:className "corp-3"} "Corporation 3: "
-          (get-market-info [:prices :corp-3]))
-         (dom/div
-          #js {:className "corp-4"} "Corporation 4: "
-          (get-market-info [:prices :corp-4]))
+           (dom/b nil "Market share")
+           (dom/div
+            #js {:className "without-good"}
+            "Without good: "
+            (num->percent
+             (get-market-info [:global-user-share :without-good])))
+           (dom/div
+            #js {:className "corp-1"} "Corporation 1: "
+            (num->percent (get-market-info [:global-user-share :corp-1])))
+           (dom/div
+            #js {:className "corp-2"} "Corporation 2: "
+            (num->percent (get-market-info [:global-user-share :corp-2])))
+           (dom/div
+            #js {:className "corp-3"} "Corporation 3: "
+            (num->percent (get-market-info [:global-user-share :corp-3])))
+           (dom/div
+            #js {:className "corp-4"} "Corporation 4: "
+            (num->percent (get-market-info [:global-user-share :corp-4])))
 
-         (dom/b nil "Good quality")
-         (dom/div
-          #js {:className "corp-1"} "Corporation 1: "
-          (get-market-info [:quality :corp-1]))
-         (dom/div
-          #js {:className "corp-2"} "Corporation 2: "
-          (get-market-info [:quality :corp-2]))
-         (dom/div
-          #js {:className "corp-3"} "Corporation 3: "
-          (get-market-info [:quality :corp-3]))
-         (dom/div
-          #js {:className "corp-4"} "Corporation 4: "
-          (get-market-info [:quality :corp-4])))))))
+           (dom/b nil "Good prices")
+           (dom/div
+            #js {:className "corp-1"} "Corporation 1: "
+            (get-market-info [:prices :corp-1]))
+           (dom/div
+            #js {:className "corp-2"} "Corporation 2: "
+            (get-market-info [:prices :corp-2]))
+           (dom/div
+            #js {:className "corp-3"} "Corporation 3: "
+            (get-market-info [:prices :corp-3]))
+           (dom/div
+            #js {:className "corp-4"} "Corporation 4: "
+            (get-market-info [:prices :corp-4]))
+
+           (dom/b nil "Good quality")
+           (dom/div
+            #js {:className "corp-1"} "Corporation 1: "
+            (get-market-info [:quality :corp-1]))
+           (dom/div
+            #js {:className "corp-2"} "Corporation 2: "
+            (get-market-info [:quality :corp-2]))
+           (dom/div
+            #js {:className "corp-3"} "Corporation 3: "
+            (get-market-info [:quality :corp-3]))
+           (dom/div
+            #js {:className "corp-4"} "Corporation 4: "
+            (get-market-info [:quality :corp-4]))))))))
 
 (def market-model-customization
   (reify
     CellularAutomatonAppCustomization
     (automaton-command-view [_] market-command-view)
+    (automaton-command-initial-state [_]
+      (let [params a/market-model-default-params]
+        (merge (select-keys params [:fixed-tax :depreciation :taxation-type])
+               (:utility-params params)
+               {:tax-rate
+                (apply str (butlast (num->percent (:tax-rate params))))})))
     (automaton-command-reset [_ command-channel]
       (put! command-channel a/market-model-default-state))
     (automaton-output-handler [_ data owner msg]

@@ -202,7 +202,8 @@
     (last vals)))
 
 (def market-model-default-params
-  {:tax-rate 0.05
+  {:taxation-type :rate
+   :tax-rate 0.05
    :fixed-tax 20
    :expenditures-per-cell
    {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
@@ -281,54 +282,58 @@
       (next-grid [this grid]
         (let [env-atom env
               env @env
+              cell-quantity (* (:width grid) (:height grid))
               global-share (compute-global-share grid)
-              next
-              (transition
-               this grid :without-good
-               (fn [this width height cells x y]
-                 (let [get-cell (partial get-cell this cells)
-                       n-states
-                       (ordered-neighbour-states get-cell width height x y)
 
-                       {:keys [top-left top top-right left right
-                               bottom-left bottom bottom-right]}
-                       n-states
-
-                       cell (get-cell [x y])
-                       s (:state cell)
-                       without-good? (fn [s] (= :without-good s))]
-                   (when-not (without-good? s)
-                     (let [price (get-in env [:prices s] 0)
-                           exp (get-in env [:expenditures-per-cell s] 0)
-                           tax (* price (get env :tax-rate 0))
-                           fixed-tax (get env :fixed-tax 0)
-                           income (- price tax exp fixed-tax)]
-                       (swap! env-atom
-                              (fn [e]
-                                (-> e
-                                    (update-in [:capital s] + income)
-                                    (update-in [:capital :government]
-                                               + tax))))))
-                   {[x y]
-                    {:state
-                     (cond
-                      (< (rand) (:depreciation env))
-                      :without-good
-
-                      (without-good? s)
-                      (weighted (user-preferences env global-share n-states))
-
-                      :else s)}})))]
+              update-capitals
+              (fn [env key]
+                (let [cell-quantity (* cell-quantity (get global-share key 0))
+                      income (* cell-quantity (get-in env [:prices key] 0))
+                      tax (if (> income 0)
+                            (condp = (get env :taxation-type :rate)
+                              :rate (* income (get env :tax-rate 0))
+                              :fixed (get env :fixed-tax 0))
+                            0)
+                      exp (* cell-quantity
+                             (get-in env [:expenditures-per-cell key] 0))]
+                  (-> env
+                      (update-in [:capital key] + income)
+                      (update-in [:capital key] - tax exp)
+                      (update-in [:capital :government] + tax))))]
           (swap! env-atom
                  (fn [e]
-                   (update-in
-                    e [:capital :government]
-                    (fn [capital]
-                      (- capital
-                         (* (* (:width grid) (:height grid))
-                            (get-in env [:expenditures-per-cell :government]
-                                    0)))))))
-          next))
+                   (-> (reduce update-capitals e (keys (:prices e)))
+                       (update-in
+                        [:capital :government]
+                        (fn [capital]
+                          (- capital
+                             (* cell-quantity
+                                (get-in e [:expenditures-per-cell :government]
+                                        0))))))))
+          (transition
+           this grid :without-good
+           (fn [this width height cells x y]
+             (let [get-cell (partial get-cell this cells)
+                   n-states
+                   (ordered-neighbour-states get-cell width height x y)
+
+                   {:keys [top-left top top-right left right
+                           bottom-left bottom bottom-right]}
+                   n-states
+
+                   cell (get-cell [x y])
+                   s (:state cell)
+                   without-good? (fn [s] (= :without-good s))]
+               {[x y]
+                {:state
+                 (cond
+                  (< (rand) (:depreciation env))
+                  :without-good
+
+                  (without-good? s)
+                  (weighted (user-preferences env global-share n-states))
+
+                  :else s)}})))))
 
       InformationChannelsSpecification
       (process-command-channel [this ic]

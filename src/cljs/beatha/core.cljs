@@ -512,7 +512,9 @@
         #js {:type "button"
              :className "btn btn-info btn-lg btn-block"
              :onClick
-             #(put! command-info-channel a/market-model-default-params)}
+             #(put! command-info-channel
+                    (a/market-model-default-params
+                     (count (:prices a/market-model-default-state))))}
         "Reset command")
 
        (dom/hr nil)))))
@@ -627,7 +629,8 @@
     CellularAutomatonAppCustomization
     (automaton-command-view [_] market-command-view)
     (automaton-command-initial-state [_]
-      (let [params a/market-model-default-params]
+      (let [params (a/market-model-default-params
+                    (count (:prices a/market-model-default-state)))]
         (merge (select-keys params [:fixed-tax :taxation-type])
                (:utility-params params)
                {:tax-rate

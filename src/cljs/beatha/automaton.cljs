@@ -201,12 +201,23 @@
     (apply merge-with deep-merge vals)
     (last vals)))
 
-(def market-model-default-params
+(defn- corp-keyword [i] (keyword (str "corp-" i)))
+
+(defn- corp-params
+  [n pfn]
+  (into {}
+        (map (fn [i]
+               (let [corp (corp-keyword i)]
+                 [corp (pfn corp i)]))
+             (range 1 (inc n)))))
+
+(defn market-model-default-params
+  [n]
   {:taxation-type :rate
    :tax-rate 0.05
    :fixed-tax 20
    :expenditures-per-cell
-   {:government 1 :corp-1 20 :corp-2 20 :corp-3 20 :corp-4 20}
+   (merge {:government 1} (corp-params n (constantly 20)))
    :depreciation 0.03
    :utility-params
    {:a 1 :p -1 :q 0}
@@ -218,16 +229,26 @@
         (Math/pow quality q)))})
 
 (def market-model-default-state
-  (merge market-model-default-params
-         {:prices
-          {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
-          :quality
-          {:corp-1 100 :corp-2 100 :corp-3 100 :corp-4 100}
-          :capital
-          {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0 :government 1000}}))
+  (let [n 4]
+    (merge (market-model-default-params n)
+           {:prices
+            (corp-params n (constantly 100))
+            :quality
+            (corp-params n (constantly 100))
+            :capital
+            (merge {:government 1000} (corp-params n (constantly 0)))})))
 
 (def market-model
   (let [env (atom market-model-default-state)
+
+        corp-quantity (count (:prices @env))
+        corp-states-progression
+        (merge {:without-good (if (> corp-quantity 0) :corp-1 :without-good)}
+               (corp-params corp-quantity
+                            (fn [corp i]
+                              (if (< i corp-quantity)
+                                (corp-keyword (inc i))
+                                :without-good))))
 
         compute-global-share
         (fn [grid]
@@ -239,7 +260,7 @@
                  (merge {:without-good
                          (repeat without-good-count {:state :without-good})})
                  (map (fn [[k v]] [k (/ (count v) cell-count)]))
-                 (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))))
+                 (into (corp-params corp-quantity (constantly 0))))))
 
         user-preferences
         (fn [env global-share n-states]
@@ -250,7 +271,7 @@
                 (->> n-states
                      (group-by second)
                      (map (fn [[k v]] [k (/ (count v) neighbour-count)]))
-                     (into {:corp-1 0 :corp-2 0 :corp-3 0 :corp-4 0}))
+                     (into (corp-params corp-quantity (constantly 0))))
                 utility
                 (partial utility
                          (:a utility-params)
@@ -275,10 +296,7 @@
       AutomatonSpecification
       (default-cell [_] {:state :without-good})
       (next-initial-state [_ state]
-        (get {:without-good :corp-1 :corp-1 :corp-2 :corp-2 :corp-3
-              :corp-3 :corp-4 :corp-4 :without-good}
-             state
-            :without-good))
+        (get corp-states-progression state :without-good))
       (next-grid [this grid]
         (let [env-atom env
               env @env

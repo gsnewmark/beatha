@@ -538,113 +538,100 @@
 
        (dom/hr nil)))))
 
-(defn market-output-view
-  [data owner]
-  (let [get-market-info (fn [path] (get-in data (cons :market-state path)))]
+(defn gen-market-info-box
+  [f path]
+  (fn [data owner]
     (reify
       om/IRender
       (render [_]
-        (let [taxation-type (get-market-info [:taxation-type])]
+        (let [corp (:corp data)
+              corp-str (keyword->str corp)]
           (dom/div
-           #js {:className "row"
-                :hidden (not (contains? data :market-state))}
-           (dom/b nil "Taxation type: ")
-           (dom/span nil (keyword->str taxation-type))
-           (dom/div nil)
+           #js {:className corp-str}
+           (apply str "Corporation " (get (.split corp-str "-") 1) ": ")
+           (f (conj path corp))))))))
 
-           (dom/span
-            #js {:hidden (not= :rate taxation-type)}
-            (dom/b nil "Tax rate: ")
-            (dom/span
-             nil
-             (num->percent (get-market-info [:tax-rate])))
-            (dom/div nil))
+(defn gen-market-output-view
+  [corps]
+  (fn [data owner]
+    (let [get-market-info (fn [path] (get-in data (cons :market-state path)))]
+      (reify
+        om/IRender
+        (render [_]
+          (let [taxation-type (get-market-info [:taxation-type])]
+            (dom/div
+             #js {:className "row"
+                  :hidden (not (contains? data :market-state))}
+             (dom/b nil "Taxation type: ")
+             (dom/span nil (keyword->str taxation-type))
+             (dom/div nil)
 
-           (dom/span
-            #js {:hidden (not= :fixed taxation-type)}
-            (dom/b nil "Fixed tax: ")
-            (dom/span nil (get-market-info [:fixed-tax]))
-            (dom/div nil))
+             (dom/span
+              #js {:hidden (not= :rate taxation-type)}
+              (dom/b nil "Tax rate: ")
+              (dom/span
+               nil
+               (num->percent (get-market-info [:tax-rate])))
+              (dom/div nil))
 
-           (dom/b nil "Depreciation rate: ")
-           (dom/span
-            nil
-            (num->percent (get-market-info [:depreciation])))
-           (dom/div nil)
+             (dom/span
+              #js {:hidden (not= :fixed taxation-type)}
+              (dom/b nil "Fixed tax: ")
+              (dom/span nil (get-market-info [:fixed-tax]))
+              (dom/div nil))
 
-           (dom/b nil "Utility function params: ")
-           (dom/div
-            nil
-            (dom/span nil "a: " (get-market-info [:utility-params :a]))
-            (dom/span nil " p: " (get-market-info [:utility-params :p]))
-            (dom/span nil " q: " (get-market-info [:utility-params :q])))
+             (dom/b nil "Depreciation rate: ")
+             (dom/span
+              nil
+              (num->percent (get-market-info [:depreciation])))
+             (dom/div nil)
 
-           (dom/b nil "Capital")
-           (dom/div
-            nil
-            "Government: " (get-market-info [:capital :government]))
-           (dom/div
-            #js {:className "corp-1"} "Corporation 1: "
-            (get-market-info [:capital :corp-1]))
-           (dom/div
-            #js {:className "corp-2"} "Corporation 2: "
-            (get-market-info [:capital :corp-2]))
-           (dom/div
-            #js {:className "corp-3"} "Corporation 3: "
-            (get-market-info [:capital :corp-3]))
-           (dom/div
-            #js {:className "corp-4"} "Corporation 4: "
-            (get-market-info [:capital :corp-4]))
+             (dom/b nil "Utility function params: ")
+             (dom/div
+              nil
+              (dom/span nil "a: " (get-market-info [:utility-params :a]))
+              (dom/span nil " p: " (get-market-info [:utility-params :p]))
+              (dom/span nil " q: " (get-market-info [:utility-params :q])))
 
-           (dom/b nil "Market share")
-           (dom/div
-            #js {:className "without-good"}
-            "Without good: "
-            (num->percent
-             (get-market-info [:global-user-share :without-good])))
-           (dom/div
-            #js {:className "corp-1"} "Corporation 1: "
-            (num->percent (get-market-info [:global-user-share :corp-1])))
-           (dom/div
-            #js {:className "corp-2"} "Corporation 2: "
-            (num->percent (get-market-info [:global-user-share :corp-2])))
-           (dom/div
-            #js {:className "corp-3"} "Corporation 3: "
-            (num->percent (get-market-info [:global-user-share :corp-3])))
-           (dom/div
-            #js {:className "corp-4"} "Corporation 4: "
-            (num->percent (get-market-info [:global-user-share :corp-4])))
+             (dom/b nil "Capital")
+             (dom/div
+              nil
+              "Government: " (get-market-info [:capital :government]))
+             (apply
+              dom/span nil
+              (om/build-all
+               (gen-market-info-box get-market-info [:capital]) corps))
 
-           (dom/b nil "Good prices")
-           (dom/div
-            #js {:className "corp-1"} "Corporation 1: "
-            (get-market-info [:prices :corp-1]))
-           (dom/div
-            #js {:className "corp-2"} "Corporation 2: "
-            (get-market-info [:prices :corp-2]))
-           (dom/div
-            #js {:className "corp-3"} "Corporation 3: "
-            (get-market-info [:prices :corp-3]))
-           (dom/div
-            #js {:className "corp-4"} "Corporation 4: "
-            (get-market-info [:prices :corp-4]))
+             (dom/b nil "Market share")
+             (dom/div
+              #js {:className "without-good"}
+              "Without good: "
+              (num->percent
+               (get-market-info [:global-user-share :without-good])))
+             (apply
+              dom/span nil
+              (om/build-all
+               (gen-market-info-box
+                (comp num->percent get-market-info)
+                [:global-user-share])
+               corps))
 
-           (dom/b nil "Good quality")
-           (dom/div
-            #js {:className "corp-1"} "Corporation 1: "
-            (get-market-info [:quality :corp-1]))
-           (dom/div
-            #js {:className "corp-2"} "Corporation 2: "
-            (get-market-info [:quality :corp-2]))
-           (dom/div
-            #js {:className "corp-3"} "Corporation 3: "
-            (get-market-info [:quality :corp-3]))
-           (dom/div
-            #js {:className "corp-4"} "Corporation 4: "
-            (get-market-info [:quality :corp-4]))))))))
+             (dom/b nil "Good prices")
+             (apply
+              dom/span nil
+              (om/build-all
+               (gen-market-info-box get-market-info [:prices]) corps))
+
+             (dom/b nil "Good quality")
+             (apply
+              dom/span nil
+              (om/build-all
+               (gen-market-info-box get-market-info [:quality]) corps)))))))))
 
 (def market-model-customization
-  (let [corps (keys (:prices a/market-model-default-state))]
+  (let [corps (keys (:prices a/market-model-default-state))
+        market-output-view
+        (gen-market-output-view (map (fn [x] {:corp x}) corps))]
     (reify
       CellularAutomatonAppCustomization
       (automaton-specific-css [_]

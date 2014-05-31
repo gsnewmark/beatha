@@ -54,6 +54,14 @@
   (when (keyword? k)
     (.substr (str k) 1)))
 
+(defn random-hsl-colors
+  [total]
+  (->> (range total)
+       (map (partial * (/ 360 total)))
+       (interleave (cycle [",50%,35%" ",50%,65%"]))
+       (partition 2)
+       (map #(apply str (reverse %)))))
+
 
 (defn grid-config-view
   [data owner]
@@ -431,6 +439,10 @@
       (om/transact! data (fn [d] (assoc d :result :none))))))
 
 
+(defn generate-corp-css
+  [corp color]
+  (str "." (keyword->str corp) " { background-color: hsl(" color "); }"))
+
 (defn market-command-view
   [data owner]
   (reify
@@ -632,27 +644,31 @@
             (get-market-info [:quality :corp-4]))))))))
 
 (def market-model-customization
-  (reify
-    CellularAutomatonAppCustomization
-    (automaton-specific-css [_] "")
-    (automaton-command-view [_] market-command-view)
-    (automaton-command-initial-state [_]
-      (let [params (a/market-model-default-params
-                    (count (:prices a/market-model-default-state)))]
-        (merge (select-keys params [:fixed-tax :taxation-type])
-               (:utility-params params)
-               {:tax-rate
-                (apply str (butlast (num->percent (:tax-rate params))))
-                :depreciation
-                (apply str
-                       (butlast (num->percent (:depreciation params))))})))
-    (automaton-command-reset [_ command-channel]
-      (put! command-channel a/market-model-default-state))
-    (automaton-output-handler [_ data owner msg]
-      (om/transact! data (fn [d] (assoc d :market-state msg))))
-    (automaton-output-view [_] market-output-view)
-    (automaton-output-reset [_ data _]
-      (om/transact! data (fn [d] (dissoc d :market-state))))))
+  (let [corps (keys (:prices a/market-model-default-state))]
+    (reify
+      CellularAutomatonAppCustomization
+      (automaton-specific-css [_]
+        (->> (map generate-corp-css corps (random-hsl-colors (count corps)))
+             (interpose "\n")
+             (apply str)))
+      (automaton-command-view [_] market-command-view)
+      (automaton-command-initial-state [_]
+        (let [params (a/market-model-default-params
+                      (count (:prices a/market-model-default-state)))]
+          (merge (select-keys params [:fixed-tax :taxation-type])
+                 (:utility-params params)
+                 {:tax-rate
+                  (apply str (butlast (num->percent (:tax-rate params))))
+                  :depreciation
+                  (apply str
+                         (butlast (num->percent (:depreciation params))))})))
+      (automaton-command-reset [_ command-channel]
+        (put! command-channel a/market-model-default-state))
+      (automaton-output-handler [_ data owner msg]
+        (om/transact! data (fn [d] (assoc d :market-state msg))))
+      (automaton-output-view [_] market-output-view)
+      (automaton-output-reset [_ data _]
+        (om/transact! data (fn [d] (dissoc d :market-state)))))))
 
 
 (defn render-cellular-automaton

@@ -156,6 +156,9 @@
 
 
 (defprotocol CellularAutomatonAppCustomization
+  (automaton-specific-css [this]
+    "Return additional CSS rules for given automaton that should be added
+    to the page.")
   (automaton-command-view [this]
     "Generates Om component that renders block for sending commands to
     automaton. Please ensure the same component is returned on each call and
@@ -181,6 +184,7 @@
      (gen-app-view automaton-spec
                    (reify
                      CellularAutomatonAppCustomization
+                     (automaton-specific-css [_] "")
                      (automaton-command-view [_] empty-view)
                      (automaton-command-initial-state [_] {})
                      (automaton-command-reset [_ _])
@@ -267,6 +271,8 @@
          (render-state [_ state]
            (dom/div
             #js {:className "container-liquid"}
+            (dom/style #js {:media "screen" :type "text/css"}
+                       (automaton-specific-css customization))
             (dom/div
              #js {:className "row"}
              (navigation-button "Menu" render-menu-view)
@@ -411,6 +417,7 @@
 (def unrestricted-language-parser-customization
   (reify
     CellularAutomatonAppCustomization
+    (automaton-specific-css [_] "")
     (automaton-command-view [this] unrestricted-language-parser-command-view)
     (automaton-command-initial-state [_] {})
     (automaton-command-reset [_ input-channel] (put! input-channel {}))
@@ -627,6 +634,7 @@
 (def market-model-customization
   (reify
     CellularAutomatonAppCustomization
+    (automaton-specific-css [_] "")
     (automaton-command-view [_] market-command-view)
     (automaton-command-initial-state [_]
       (let [params (a/market-model-default-params

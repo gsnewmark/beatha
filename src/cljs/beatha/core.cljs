@@ -528,7 +528,7 @@
               :onChange
               #(handle-int-config-change % owner state :fixed-tax)}))
 
-       (dom/label nil "Depreciation rate (%)")
+       (dom/label nil "Base depreciation rate (%)")
        (dom/input
         #js {:type "text" :className "form-control" :value depreciation
              :onChange
@@ -560,6 +560,7 @@
                                            :p (js/parseFloat p)}
                                           (filter (comp is-number? second))
                                           (into {}))})
+                   (assoc {:type :config} :cmd)
                    (put! command-info-channel))}
         "Send command")
 
@@ -567,7 +568,9 @@
         #js {:type "button"
              :className "btn btn-info btn-lg btn-block"
              :onClick
-             #(put! command-info-channel a/market-model-default-params)}
+             #(put! command-info-channel
+                    {:type :config
+                     :cmd a/market-model-default-params})}
         "Reset command")
 
        (dom/hr nil)))))
@@ -599,36 +602,6 @@
           (dom/div
            #js {:className "row"
                 :hidden (not (contains? data :market-state))}
-           (dom/b nil "Taxation type: ")
-           (dom/span nil (keyword->str taxation-type))
-           (dom/div nil)
-
-           (dom/span
-            #js {:hidden (not (#{:rate :income-rate} taxation-type))}
-            (dom/b nil "Tax rate: ")
-            (dom/span
-             nil
-             (num->percent (get-market-info [:tax-rate])))
-            (dom/div nil))
-
-           (dom/span
-            #js {:hidden (not= :fixed taxation-type)}
-            (dom/b nil "Fixed tax: ")
-            (dom/span nil (get-market-info [:fixed-tax]))
-            (dom/div nil))
-
-           (dom/b nil "Depreciation rate: ")
-           (dom/span
-            nil
-            (num->percent (get-market-info [:depreciation])))
-           (dom/div nil)
-
-           (dom/b nil "Utility function params: ")
-           (dom/div
-            nil
-            (dom/span nil "a: " (get-market-info [:utility-params :a]))
-            (dom/span nil " p: " (get-market-info [:utility-params :p])))
-
            (dom/b nil "Capital")
            (dom/div
             nil
@@ -656,7 +629,38 @@
            (apply
             dom/span nil
             (om/build-all
-             (gen-market-info-box get-market-info [:prices]) corps))))))))
+             (gen-market-info-box get-market-info [:prices]) corps))
+
+           (dom/b nil "Taxation type: ")
+           (dom/span nil (keyword->str taxation-type))
+           (dom/div nil)
+
+           (dom/span
+            #js {:hidden (not (#{:rate :income-rate} taxation-type))}
+            (dom/b nil "Tax rate: ")
+            (dom/span
+             nil
+             (num->percent (get-market-info [:tax-rate])))
+            (dom/div nil))
+
+           (dom/span
+            #js {:hidden (not= :fixed taxation-type)}
+            (dom/b nil "Fixed tax: ")
+            (dom/span nil (get-market-info [:fixed-tax]))
+            (dom/div nil))
+
+           (dom/b nil "Base depreciation rate: ")
+           (dom/span
+            nil
+            (num->percent (get-market-info [:depreciation])))
+           (dom/div nil)
+
+           (dom/b nil "Utility function params: ")
+           (dom/div
+            nil
+            (dom/span nil "a: " (get-market-info [:utility-params :a]))
+            (dom/span
+             nil " p: " (get-market-info [:utility-params :p])))))))))
 
 (defn market-model-configuration-view
   [data owner]
@@ -695,7 +699,8 @@
                :disabled started
                :onClick #(do (put! config-changed corp-quantity)
                              (put! command-info-channel
-                                   {:corp-quantity corp-quantity}))}
+                                   {:type :change-corp-quantity
+                                    :cmd corp-quantity}))}
           "Update")
          (dom/hr nil))))))
 
@@ -721,9 +726,29 @@
                 (apply str
                        (butlast (num->percent (:depreciation params))))})))
     (automaton-command-reset [_ command-channel]
-      (put! command-channel :reset))
+      (put! command-channel {:type :reset}))
     (automaton-output-handler [_ data owner msg]
-      (om/transact! data (fn [d] (assoc d :market-state msg))))
+      (let [corp-quantity
+            (get-in @data [:automaton :specific :corp-quantity] 4)
+            corps (corps corp-quantity)
+            competitor-count
+            (count (filter (fn [[k v]] (>= v 0))
+                           (dissoc (:capital msg) :government)))
+            command-info-c (om/get-state owner :command-info-channel)]
+        (when (zero? (mod (:iteration msg) 6))
+          (doseq [corp corps]
+            (let [cmd
+                  (update-in (a/conservative-corp
+                              (cons competitor-count
+                                    ((juxt (:global-user-share msg)
+                                           (:capital msg)
+                                           (:capital-diff msg)
+                                           (:prices msg))
+                                     corp)))
+                             [:cmd]
+                             (fn [p] [corp p]))]
+              (put! command-info-c cmd))))
+        (om/transact! data (fn [d] (assoc d :market-state msg)))))
     (automaton-output-view [_] market-output-view)
     (automaton-output-reset [_ data _]
       (om/transact! data (fn [d] (dissoc d :market-state))))))

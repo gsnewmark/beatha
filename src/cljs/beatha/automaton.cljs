@@ -232,10 +232,36 @@
   [n]
   (merge market-model-default-params
          {:corp-quantity n
+          :iteration 0
           :prices
           (corp-params n (constantly 100))
           :capital
-          (merge {:government 1000} (corp-params n (constantly 0)))}))
+          (merge {:government 1000} (corp-params n (constantly 0)))
+          :capital-diff
+          (corp-params n (constantly 0))}))
+
+(defn conservative-corp
+  [[competitor-count share capital capital-diff price]]
+  (cond
+   (< capital-diff 0)                        {:type :change-price
+                                              :cmd (* price 1.5)}
+   (and (< share (/ 1.0 competitor-count))
+        (> price 100))                       {:type :change-price
+                                              :cmd (/ price 3)}
+   (and (< share (/ 1.0 competitor-count))
+        (> price 10))                        {:type :change-price
+                                              :cmd (/ price 1.5)}
+   (and (< share (/ 1.0 competitor-count 2))
+        (> price 100))                       {:type :change-price
+                                              :cmd (/ price 4)}
+   (and (< share (/ 1.0 competitor-count 2))
+        (> price 10))                        {:type :change-price
+                                              :cmd (/ price 2)}
+   (>= share 0.33)                           {:type :change-price
+                                              :cmd (* price 1.2)}
+   (>= share 0.5)                            {:type :change-price
+                                              :cmd (* price 1.5)}
+   :else                                     {:type :do-nothing}))
 
 (def market-model
   (let [env (atom (market-model-default-state 4))
@@ -314,14 +340,16 @@
                               :rate (* (+ income exp) (get env :tax-rate 0))
                               :income-rate (* income (get env :tax-rate 0))
                               :fixed (get env :fixed-tax 0))
-                            0)]
+                            0)
+                      diff (- income tax exp)]
                   (-> env
-                      (update-in [:capital key] + income)
-                      (update-in [:capital key] - tax exp)
-                      (update-in [:capital :government] + tax))))]
+                      (update-in [:capital key] + diff)
+                      (update-in [:capital :government] + tax)
+                      (update-in [:capital-diff key] + diff))))]
           (swap! env-atom
                  (fn [e]
                    (-> (reduce update-capitals e (keys (:prices e)))
+                       (update-in [:iteration] inc)
                        (update-in
                         [:capital :government]
                         (fn [capital]
@@ -343,13 +371,17 @@
                    cell (get-cell [x y])
                    s (:state cell)
                    without-good? (fn [s] (= :without-good s))
+                   avg-price (/ (apply + (vals (:prices env)))
+                                (:corp-quantity env))
+                   current-price (get-in env [:prices s])
                    bankrupt? (fn [c] (and
                                      (not (without-good? s))
                                      (< (get-in env [:capital c] -1) 0)))]
                {[x y]
                 {:state
                  (cond
-                  (or (< (rand) (:depreciation env))
+                  (or (< (rand) (* (:depreciation env)
+                                   (/ current-price avg-price)))
                       (bankrupt? s))
                   :without-good
 
@@ -365,13 +397,27 @@
       (process-command-channel [this ic]
         (go
           (while true
-            (let [cmd (<! ic)]
-              (if (= :reset cmd)
+            (let [msg (<! ic)
+                  {:keys [type cmd]} msg]
+              (condp = type
+                :reset
                 (reset! env
                         (market-model-default-state (:corp-quantity @env)))
-                (if-let [n (:corp-quantity cmd)]
-                  (reset! env (deep-merge (market-model-default-state n) cmd))
-                  (swap! env deep-merge cmd)))))))
+
+                :change-corp-quantity
+                (reset! env (market-model-default-state cmd))
+
+                :change-price
+                (let [[corp price] cmd]
+                  (swap! env #(-> %
+                                  (assoc-in [:prices corp] price)
+                                  (assoc-in [:capital-diff corp] 0))))
+
+                :do-nothing
+                nil
+
+                :config
+                (swap! env deep-merge cmd))))))
       (fill-output-info-channel [this oc grid]
         (let [env @env]
           (put! oc (-> env

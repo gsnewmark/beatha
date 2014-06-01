@@ -202,7 +202,7 @@
     (apply merge-with deep-merge vals)
     (last vals)))
 
-(defn- corp-keyword [i] (keyword (str "corp-" i)))
+(defn corp-keyword [i] (keyword (str "corp-" i)))
 
 (defn- corp-params
   [n pfn]
@@ -212,13 +212,12 @@
                  [corp (pfn corp i)]))
              (range 1 (inc n)))))
 
-(defn market-model-default-params
-  [n]
+(def market-model-default-params
   {:taxation-type :rate
    :tax-rate 0.05
    :fixed-tax 20
    :expenditures-per-cell
-   (merge {:government 1} (corp-params n (constantly 20)))
+   {:government 1 :corp 20}
    :depreciation 0.03
    :utility-params
    {:a 1 :p -1 :q 0}
@@ -228,28 +227,20 @@
         (Math/pow local-share a)
         (Math/pow price p)))})
 
-(def market-model-default-state
-  (let [n 4]
-    (merge (market-model-default-params n)
-           {:prices
-            (corp-params n (constantly 100))
-            :capital
-            (merge {:government 1000} (corp-params n (constantly 0)))})))
+(defn market-model-default-state
+  [n]
+  (merge market-model-default-params
+         {:corp-quantity n
+          :prices
+          (corp-params n (constantly 100))
+          :capital
+          (merge {:government 1000} (corp-params n (constantly 0)))}))
 
 (def market-model
-  (let [env (atom market-model-default-state)
-
-        corp-quantity (count (:prices @env))
-        corp-states-progression
-        (merge {:without-good (if (> corp-quantity 0) :corp-1 :without-good)}
-               (corp-params corp-quantity
-                            (fn [corp i]
-                              (if (< i corp-quantity)
-                                (corp-keyword (inc i))
-                                :without-good))))
+  (let [env (atom (market-model-default-state 4))
 
         compute-global-share
-        (fn [grid]
+        (fn [corp-quantity grid]
           (let [cell-count (* (:width grid) (:height grid))
                 cells-with-good (vals (:cells grid))
                 without-good-count (- cell-count (count cells-with-good))]
@@ -265,6 +256,7 @@
           (let [{:keys [utility utility-params prices]} env
                 available-goods (keys prices)
                 neighbour-count (count n-states)
+                corp-quantity (:corp-quantity env)
                 local-share
                 (->> n-states
                      (group-by second)
@@ -292,19 +284,29 @@
       AutomatonSpecification
       (default-cell [_] {:state :without-good})
       (next-initial-state [_ state]
-        (get corp-states-progression state :without-good))
+        (let [corp-quantity (:corp-quantity @env)
+              corp-states-progression
+              (merge {:without-good
+                      (if (> corp-quantity 0) :corp-1 :without-good)}
+                     (corp-params corp-quantity
+                                  (fn [corp i]
+                                    (if (< i corp-quantity)
+                                      (corp-keyword (inc i))
+                                      :without-good))))]
+          (get corp-states-progression state :without-good)))
       (next-grid [this grid]
         (let [env-atom env
               env @env
+              corp-quantity (:corp-quantity env)
               cell-quantity (* (:width grid) (:height grid))
-              global-share (compute-global-share grid)
+              global-share (compute-global-share corp-quantity grid)
 
               update-capitals
               (fn [env key]
                 (let [cell-quantity (* cell-quantity (get global-share key 0))
                       income (* cell-quantity (get-in env [:prices key] 0))
                       exp (* cell-quantity
-                             (get-in env [:expenditures-per-cell key] 0))
+                             (get-in env [:expenditures-per-cell :corp] 0))
                       tax (if (> income 0)
                             (condp = (get env :taxation-type :rate)
                               :rate (* (+ income exp) (get env :tax-rate 0))
@@ -352,9 +354,19 @@
 
       InformationChannelsSpecification
       (process-command-channel [this ic]
-        (go (while true (let [cmd (<! ic)] (swap! env deep-merge cmd)))))
+        (go
+          (while true
+            (let [cmd (<! ic)]
+              (if (= :reset cmd)
+                (reset! env
+                        (market-model-default-state (:corp-quantity @env)))
+                (if-let [n (:corp-quantity cmd)]
+                  (reset! env (deep-merge (market-model-default-state n) cmd))
+                  (swap! env deep-merge cmd)))))))
       (fill-output-info-channel [this oc grid]
-        (put! oc (-> @env
-                     (dissoc :utility)
-                     (assoc :global-user-share
-                       (compute-global-share grid))))))))
+        (let [env @env]
+          (put! oc (-> env
+                       (dissoc :utility)
+                       (assoc :global-user-share
+                         (compute-global-share
+                          (:corp-quantity env) grid)))))))))

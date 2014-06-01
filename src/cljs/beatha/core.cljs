@@ -32,7 +32,7 @@
   (dom/button
    #js {:type "button"
         :className "btn btn-success btn-lg btn-block"
-        :onClick f}
+        :onClick (fn [] (f))}
    text))
 
 (def ^:private empty-view
@@ -164,9 +164,12 @@
 
 
 (defprotocol CellularAutomatonAppCustomization
-  (automaton-specific-css [this]
+  (automaton-specific-css [this data]
     "Return additional CSS rules for given automaton that should be added
     to the page.")
+  (automaton-configuration-view [this]
+    "Genrates Om component that renders automaton-specific configuration
+    block.")
   (automaton-command-view [this]
     "Generates Om component that renders block for sending commands to
     automaton. Please ensure the same component is returned on each call and
@@ -192,7 +195,8 @@
      (gen-app-view automaton-spec
                    (reify
                      CellularAutomatonAppCustomization
-                     (automaton-specific-css [_] "")
+                     (automaton-specific-css [_ _] "")
+                     (automaton-configuration-view [_] empty-view)
                      (automaton-command-view [_] empty-view)
                      (automaton-command-initial-state [_] {})
                      (automaton-command-reset [_ _])
@@ -204,7 +208,8 @@
        (reify
          om/IInitState
          (init-state [_]
-           {:change-grid-dimensions (chan)
+           {:reset (chan)
+            :change-grid-dimensions (chan)
             :change-display-dimensions (chan)
             :cell-state-changed (chan)
             :started (chan)
@@ -212,7 +217,8 @@
             :command-info-channel (chan)})
          om/IWillMount
          (will-mount [_]
-           (let [grid-c (om/get-state owner :change-grid-dimensions)
+           (let [reset-c (om/get-state owner :reset)
+                 grid-c (om/get-state owner :change-grid-dimensions)
                  display-c (om/get-state owner :change-display-dimensions)
                  cell-state-c (om/get-state owner :cell-state-changed)
                  started-c (om/get-state owner :started)
@@ -221,10 +227,18 @@
              (a/process-command-channel automaton-spec command-info-c)
              (go (while true
                    (alt!
-                     grid-c
-                     ([[width height]]
+                     reset-c
+                     ([reset-grid?]
                         (automaton-command-reset customization command-info-c)
                         (automaton-output-reset customization data owner)
+                        (when reset-grid?
+                          (om/transact!
+                           data [:automaton :grid]
+                           (fn [grid] (assoc grid :cells {})))))
+
+                     grid-c
+                     ([[width height]]
+                        (put! reset-c false)
                         (om/transact!
                          data [:automaton :grid]
                          (fn [grid]
@@ -280,7 +294,7 @@
            (dom/div
             #js {:className "container-liquid"}
             (dom/style #js {:media "screen" :type "text/css"}
-                       (automaton-specific-css customization))
+                       (automaton-specific-css customization data))
             (dom/div
              #js {:className "row"}
              (navigation-button "Menu" render-menu-view)
@@ -310,6 +324,13 @@
                  (merge
                   (select-keys state [:command-info-channel])
                   (automaton-command-initial-state customization))}))
+              (dom/div
+               #js {:className "row"}
+               (om/build (automaton-configuration-view customization)
+                         (merge (get-in data [:automaton :specific])
+                                (get-in data [:automaton :util])
+                                (get-in data [:automaton :grid]))
+                         {:init-state state}))
               (dom/div
                #js {:className "row"}
                (om/build grid-config-view
@@ -425,7 +446,8 @@
 (def unrestricted-language-parser-customization
   (reify
     CellularAutomatonAppCustomization
-    (automaton-specific-css [_] "")
+    (automaton-specific-css [_ _] "")
+    (automaton-configuration-view [_] empty-view)
     (automaton-command-view [this] unrestricted-language-parser-command-view)
     (automaton-command-initial-state [_] {})
     (automaton-command-reset [_ input-channel] (put! input-channel {}))
@@ -438,6 +460,8 @@
     (automaton-output-reset [_ data _]
       (om/transact! data (fn [d] (assoc d :result :none))))))
 
+
+(defn corps [n] (map a/corp-keyword (range 1 (inc n))))
 
 (defn generate-corp-css
   [corp color]
@@ -532,9 +556,7 @@
         #js {:type "button"
              :className "btn btn-info btn-lg btn-block"
              :onClick
-             #(put! command-info-channel
-                    (a/market-model-default-params
-                     (count (:prices a/market-model-default-state))))}
+             #(put! command-info-channel a/market-model-default-params)}
         "Reset command")
 
        (dom/hr nil)))))
@@ -552,113 +574,158 @@
            (apply str "Corporation " (get (.split corp-str "-") 1) ": ")
            (f (conj path corp))))))))
 
-(defn gen-market-output-view
-  [corps]
-  (fn [data owner]
-    (let [get-market-info (fn [path] (get-in data (cons :market-state path)))]
-      (reify
-        om/IRender
-        (render [_]
-          (let [taxation-type (get-market-info [:taxation-type])]
-            (dom/div
-             #js {:className "row"
-                  :hidden (not (contains? data :market-state))}
-             (dom/b nil "Taxation type: ")
-             (dom/span nil (keyword->str taxation-type))
-             (dom/div nil)
+(defn market-output-view
+  [data owner]
+  (let [get-market-info (fn [path] (get-in data (cons :market-state path)))]
+    (reify
+      om/IRender
+      (render [_]
+        (let [taxation-type (get-market-info [:taxation-type])
+              corps
+              (map (fn [c] {:corp c})
+                   (corps
+                    (get-in data [:automaton :specific :corp-quantity] 4)))]
+          (dom/div
+           #js {:className "row"
+                :hidden (not (contains? data :market-state))}
+           (dom/b nil "Taxation type: ")
+           (dom/span nil (keyword->str taxation-type))
+           (dom/div nil)
 
-             (dom/span
-              #js {:hidden (not (#{:rate :income-rate} taxation-type))}
-              (dom/b nil "Tax rate: ")
-              (dom/span
-               nil
-               (num->percent (get-market-info [:tax-rate])))
-              (dom/div nil))
+           (dom/span
+            #js {:hidden (not (#{:rate :income-rate} taxation-type))}
+            (dom/b nil "Tax rate: ")
+            (dom/span
+             nil
+             (num->percent (get-market-info [:tax-rate])))
+            (dom/div nil))
 
-             (dom/span
-              #js {:hidden (not= :fixed taxation-type)}
-              (dom/b nil "Fixed tax: ")
-              (dom/span nil (get-market-info [:fixed-tax]))
-              (dom/div nil))
+           (dom/span
+            #js {:hidden (not= :fixed taxation-type)}
+            (dom/b nil "Fixed tax: ")
+            (dom/span nil (get-market-info [:fixed-tax]))
+            (dom/div nil))
 
-             (dom/b nil "Depreciation rate: ")
-             (dom/span
-              nil
-              (num->percent (get-market-info [:depreciation])))
-             (dom/div nil)
+           (dom/b nil "Depreciation rate: ")
+           (dom/span
+            nil
+            (num->percent (get-market-info [:depreciation])))
+           (dom/div nil)
 
-             (dom/b nil "Utility function params: ")
-             (dom/div
-              nil
-              (dom/span nil "a: " (get-market-info [:utility-params :a]))
-              (dom/span nil " p: " (get-market-info [:utility-params :p])))
+           (dom/b nil "Utility function params: ")
+           (dom/div
+            nil
+            (dom/span nil "a: " (get-market-info [:utility-params :a]))
+            (dom/span nil " p: " (get-market-info [:utility-params :p])))
 
-             (dom/b nil "Capital")
-             (dom/div
-              nil
-              "Government: " (get-market-info [:capital :government]))
-             (apply
-              dom/span nil
-              (om/build-all
-               (gen-market-info-box get-market-info [:capital]) corps))
+           (dom/b nil "Capital")
+           (dom/div
+            nil
+            "Government: " (get-market-info [:capital :government]))
+           (apply
+            dom/span nil
+            (om/build-all
+             (gen-market-info-box get-market-info [:capital]) corps))
 
-             (dom/b nil "Market share")
-             (dom/div
-              #js {:className "without-good"}
-              "Without good: "
-              (num->percent
-               (get-market-info [:global-user-share :without-good])))
-             (apply
-              dom/span nil
-              (om/build-all
-               (gen-market-info-box
-                (comp num->percent get-market-info)
-                [:global-user-share])
-               corps))
+           (dom/b nil "Market share")
+           (dom/div
+            #js {:className "without-good"}
+            "Without good: "
+            (num->percent
+             (get-market-info [:global-user-share :without-good])))
+           (apply
+            dom/span nil
+            (om/build-all
+             (gen-market-info-box
+              (comp num->percent get-market-info)
+              [:global-user-share])
+             corps))
 
-             (dom/b nil "Good prices")
-             (apply
-              dom/span nil
-              (om/build-all
-               (gen-market-info-box get-market-info [:prices]) corps)))))))))
+           (dom/b nil "Good prices")
+           (apply
+            dom/span nil
+            (om/build-all
+             (gen-market-info-box get-market-info [:prices]) corps))))))))
+
+(defn market-model-configuration-view
+  [data owner]
+  (reify
+    om/IInitState
+    (init-state
+      [_]
+      {:config-changed (chan)
+       :width (:width data)
+       :height (:height data)
+       :corp-quantity (:corp-quantity data)})
+    om/IWillMount
+    (will-mount [_]
+      (let [config-c (om/get-state owner :config-changed)
+            reset-c (om/get-state owner :reset)]
+        (go
+          (while true
+            (let [corp-quantity (<! config-c)]
+              (om/transact! data #(assoc % :corp-quantity corp-quantity))
+              (put! reset-c true))))))
+    om/IRenderState
+    (render-state [_ {:keys [corp-quantity config-changed
+                             command-info-channel]
+                      :as state}]
+      (let [started (:started data)]
+        (dom/div
+         #js {:role "form" :className "automaton-economic-model-control"}
+         (dom/label nil "Quantity of corporations")
+         (dom/input
+          #js {:type "text" :className "form-control" :value corp-quantity
+               :disabled started
+               :onChange
+               #(handle-int-config-change % owner state :corp-quantity)})
+         (dom/button
+          #js {:type "button" :className "btn btn-danger btn-lg btn-block"
+               :disabled started
+               :onClick #(do (put! config-changed corp-quantity)
+                             (put! command-info-channel
+                                   {:corp-quantity corp-quantity}))}
+          "Update")
+         (dom/hr nil))))))
 
 (def market-model-customization
-  (let [corps (keys (:prices a/market-model-default-state))
-        market-output-view
-        (gen-market-output-view (map (fn [x] {:corp x}) corps))]
-    (reify
-      CellularAutomatonAppCustomization
-      (automaton-specific-css [_]
-        (->> (map generate-corp-css corps (random-hsl-colors (count corps)))
+  (reify
+    CellularAutomatonAppCustomization
+    (automaton-specific-css [_ data]
+      (let [corp-quantity
+            (get-in data [:automaton :specific :corp-quantity] 4)
+            corps (corps corp-quantity)]
+        (->> (map generate-corp-css corps (random-hsl-colors corp-quantity))
              (interpose "\n")
-             (apply str)))
-      (automaton-command-view [_] market-command-view)
-      (automaton-command-initial-state [_]
-        (let [params (a/market-model-default-params
-                      (count (:prices a/market-model-default-state)))]
-          (merge (select-keys params [:fixed-tax :taxation-type])
-                 (:utility-params params)
-                 {:tax-rate
-                  (apply str (butlast (num->percent (:tax-rate params))))
-                  :depreciation
-                  (apply str
-                         (butlast (num->percent (:depreciation params))))})))
-      (automaton-command-reset [_ command-channel]
-        (put! command-channel a/market-model-default-state))
-      (automaton-output-handler [_ data owner msg]
-        (om/transact! data (fn [d] (assoc d :market-state msg))))
-      (automaton-output-view [_] market-output-view)
-      (automaton-output-reset [_ data _]
-        (om/transact! data (fn [d] (dissoc d :market-state)))))))
+             (apply str))))
+    (automaton-configuration-view [_] market-model-configuration-view)
+    (automaton-command-view [_] market-command-view)
+    (automaton-command-initial-state [_]
+      (let [params a/market-model-default-params]
+        (merge (select-keys params [:fixed-tax :taxation-type])
+               (:utility-params params)
+               {:tax-rate
+                (apply str (butlast (num->percent (:tax-rate params))))
+                :depreciation
+                (apply str
+                       (butlast (num->percent (:depreciation params))))})))
+    (automaton-command-reset [_ command-channel]
+      (put! command-channel :reset))
+    (automaton-output-handler [_ data owner msg]
+      (om/transact! data (fn [d] (assoc d :market-state msg))))
+    (automaton-output-view [_] market-output-view)
+    (automaton-output-reset [_ data _]
+      (om/transact! data (fn [d] (dissoc d :market-state))))))
 
 
 (defn render-cellular-automaton
-  [view]
-  (om/root
-   view
-   app-state
-   {:target (. js/document (getElementById "app"))
-    :init-state {:animation-step 500}}))
+  ([view] (render-cellular-automaton view {}))
+  ([view additional-data]
+     (om/root
+      view
+      (assoc-in app-state [:automaton :specific] additional-data)
+      {:target (. js/document (getElementById "app"))
+       :init-state {:animation-step 500}})))
 
 
 (defn menu-view
@@ -682,7 +749,8 @@
          "Economic model"
          (partial render-cellular-automaton
                   (gen-app-view
-                   a/market-model market-model-customization)))))))
+                   a/market-model market-model-customization)
+                  {:corp-quantity 4}))))))
 
 (defn render-menu-view
   []

@@ -223,18 +223,15 @@
    :utility-params
    {:a 1 :p -1 :q 0}
    :utility
-   (fn [a p q price quality global-share local-share]
+   (fn [a p price global-share local-share]
      (* global-share
         (Math/pow local-share a)
-        (Math/pow price p)
-        (Math/pow quality q)))})
+        (Math/pow price p)))})
 
 (def market-model-default-state
   (let [n 4]
     (merge (market-model-default-params n)
            {:prices
-            (corp-params n (constantly 100))
-            :quality
             (corp-params n (constantly 100))
             :capital
             (merge {:government 1000} (corp-params n (constantly 0)))})))
@@ -265,7 +262,7 @@
 
         user-preferences
         (fn [env global-share n-states]
-          (let [{:keys [utility utility-params prices quality]} env
+          (let [{:keys [utility utility-params prices]} env
                 available-goods (keys prices)
                 neighbour-count (count n-states)
                 local-share
@@ -276,13 +273,11 @@
                 utility
                 (partial utility
                          (:a utility-params)
-                         (:p utility-params)
-                         (:q utility-params))]
+                         (:p utility-params))]
             (->> available-goods
                  (map
                   (fn [g]
                     [g (utility (prices g)
-                                (quality g)
                                 (global-share g)
                                 (local-share g))]))
                  ((fn [p]

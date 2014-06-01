@@ -448,7 +448,7 @@
   (reify
     om/IRenderState
     (render-state [_ {:keys [tax-rate fixed-tax depreciation
-                             a p q command-info-channel
+                             a p command-info-channel
                              taxation-type]
                       :as state}]
       (dom/div
@@ -509,11 +509,6 @@
         #js {:type "text" :className "form-control" :value p
              :onChange #(handle-float-config-change % owner state :p)})
 
-       (dom/label nil "Utilty param q")
-       (dom/input
-        #js {:type "text" :className "form-control" :value q
-             :onChange #(handle-float-config-change % owner state :q)})
-
        (dom/button
         #js {:type "button"
              :className "btn btn-success btn-lg btn-block"
@@ -527,8 +522,7 @@
                    (into {:taxation-type taxation-type})
                    (merge
                     {:utility-params (->> {:a (js/parseFloat a)
-                                           :p (js/parseFloat p)
-                                           :q (js/parseFloat q)}
+                                           :p (js/parseFloat p)}
                                           (filter (comp is-number? second))
                                           (into {}))})
                    (put! command-info-channel))}
@@ -597,8 +591,7 @@
              (dom/div
               nil
               (dom/span nil "a: " (get-market-info [:utility-params :a]))
-              (dom/span nil " p: " (get-market-info [:utility-params :p]))
-              (dom/span nil " q: " (get-market-info [:utility-params :q])))
+              (dom/span nil " p: " (get-market-info [:utility-params :p])))
 
              (dom/b nil "Capital")
              (dom/div
@@ -627,13 +620,7 @@
              (apply
               dom/span nil
               (om/build-all
-               (gen-market-info-box get-market-info [:prices]) corps))
-
-             (dom/b nil "Good quality")
-             (apply
-              dom/span nil
-              (om/build-all
-               (gen-market-info-box get-market-info [:quality]) corps)))))))))
+               (gen-market-info-box get-market-info [:prices]) corps)))))))))
 
 (def market-model-customization
   (let [corps (keys (:prices a/market-model-default-state))

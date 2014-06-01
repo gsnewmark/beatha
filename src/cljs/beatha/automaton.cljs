@@ -187,6 +187,7 @@
                       (into {})
                       (merge {:s 0 :f 0})))))))
 
+
 (defn- weighted
   [m]
   (let [w (reductions #(+ % %2) (vals m))
@@ -307,13 +308,14 @@
               (fn [env key]
                 (let [cell-quantity (* cell-quantity (get global-share key 0))
                       income (* cell-quantity (get-in env [:prices key] 0))
+                      exp (* cell-quantity
+                             (get-in env [:expenditures-per-cell key] 0))
                       tax (if (> income 0)
                             (condp = (get env :taxation-type :rate)
-                              :rate (* income (get env :tax-rate 0))
+                              :rate (* (+ income exp) (get env :tax-rate 0))
+                              :income-rate (* income (get env :tax-rate 0))
                               :fixed (get env :fixed-tax 0))
-                            0)
-                      exp (* cell-quantity
-                             (get-in env [:expenditures-per-cell key] 0))]
+                            0)]
                   (-> env
                       (update-in [:capital key] + income)
                       (update-in [:capital key] - tax exp)

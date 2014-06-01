@@ -465,13 +465,20 @@
        (dom/div
         #js {:className "radio"}
         (dom/input
+         #js {:type "radio" :name "taxation-type" :value "income-rate"
+              :checked (= :income-rate taxation-type)
+              :onChange #(om/set-state! owner :taxation-type :income-rate)}
+         "Income rate"))
+       (dom/div
+        #js {:className "radio"}
+        (dom/input
          #js {:type "radio" :name "taxation-type" :value "fixed"
               :checked (= :fixed taxation-type)
               :onChange #(om/set-state! owner :taxation-type :fixed)}
          "Fixed"))
 
        (dom/span
-        #js {:hidden (not= :rate taxation-type)}
+        #js {:hidden (not (#{:rate :income-rate} taxation-type))}
         (dom/label nil "Tax rate (%)")
         (dom/input
          #js {:type "text" :className "form-control" :value tax-rate
@@ -567,7 +574,7 @@
              (dom/div nil)
 
              (dom/span
-              #js {:hidden (not= :rate taxation-type)}
+              #js {:hidden (not (#{:rate :income-rate} taxation-type))}
               (dom/b nil "Tax rate: ")
               (dom/span
                nil

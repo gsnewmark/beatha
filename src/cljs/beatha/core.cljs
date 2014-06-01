@@ -8,7 +8,7 @@
 (enable-console-print!)
 
 (def app-state {:automaton {:grid {:width 10 :height 10 :cells {}}
-                            :display {:width 600 :height 600}
+                            :display {:width 580 :height 580}
                             :util {:started false}}
                 :command {}})
 
@@ -311,9 +311,6 @@
                        :className "btn btn-primary btn-lg btn-block"
                        :onClick #(put! (:started state) (not started))}
                   (if started "Stop" "Start"))))
-              (dom/div
-               #js {:className "row"}
-               (om/build (automaton-output-view customization) data))
               (dom/hr nil)
               (dom/div
                #js {:className "row"}
@@ -352,16 +349,30 @@
                            :width (get-in data [:automaton :display :width])
                            :height
                            (get-in data [:automaton :display :height])}})))
-             (dom/div
-              #js {:className "col-sm-10"}
-              (dom/div
-               #js {:className "row"}
-               (om/build grid-view
-                         (:automaton data)
-                         {:init-state
-                          {:cell-state-changed (:cell-state-changed state)
-                           :default-cell
-                           (a/default-cell automaton-spec)}}))))))))))
+             (let [output-view-present?
+                   (not= (automaton-output-view customization)
+                         empty-view)]
+               (dom/div
+                nil
+                (dom/div
+                 #js {:className "col-sm-2"
+                      :hidden (not output-view-present?)}
+                 (dom/div
+                  #js {:className "row"}
+                  (dom/h3 nil "Output information channel")
+                  (om/build (automaton-output-view customization) data)))
+                (dom/div
+                 #js {:className (if output-view-present?
+                                   "col-sm-8"
+                                   "col-sm-10")}
+                 (dom/div
+                  #js {:className "row"}
+                  (om/build grid-view
+                            (:automaton data)
+                            {:init-state
+                             {:cell-state-changed (:cell-state-changed state)
+                              :default-cell
+                              (a/default-cell automaton-spec)}}))))))))))))
 
 
 (declare unrestricted-language-parser-customization)

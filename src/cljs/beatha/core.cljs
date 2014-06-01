@@ -760,3 +760,7 @@
    {:target (. js/document (getElementById "app"))}))
 
 (render-menu-view)
+(render-cellular-automaton
+                  (gen-app-view
+                   a/market-model market-model-customization)
+                  {:corp-quantity 4})

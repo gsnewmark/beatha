@@ -190,9 +190,10 @@
 
 (defn- weighted
   [m]
-  (let [w (reductions #(+ % %2) (vals m))
-        r (rand (last w))]
-    (nth (keys m) (count (take-while #(<= % r) w)))))
+  (when-not (empty? m)
+    (let [w (reductions #(+ % %2) (vals m))
+          r (rand (last w))]
+      (nth (keys m) (count (take-while #(<= % r) w))))))
 
 ;;; from https://groups.google.com/d/msg/clojure/UdFLYjLvNRs/NqlA7wnLCE0J
 (defn- deep-merge
@@ -253,8 +254,9 @@
 
         user-preferences
         (fn [env global-share n-states]
-          (let [{:keys [utility utility-params prices]} env
-                available-goods (keys prices)
+          (let [{:keys [utility utility-params prices capital]} env
+                available-goods (filter #(>= (get capital % -1)  0)
+                                        (keys prices))
                 neighbour-count (count n-states)
                 corp-quantity (:corp-quantity env)
                 local-share
@@ -340,15 +342,22 @@
 
                    cell (get-cell [x y])
                    s (:state cell)
-                   without-good? (fn [s] (= :without-good s))]
+                   without-good? (fn [s] (= :without-good s))
+                   bankrupt? (fn [c] (and
+                                     (not (without-good? s))
+                                     (< (get-in env [:capital c] -1) 0)))]
                {[x y]
                 {:state
                  (cond
-                  (< (rand) (:depreciation env))
+                  (or (< (rand) (:depreciation env))
+                      (bankrupt? s))
                   :without-good
 
                   (without-good? s)
-                  (weighted (user-preferences env global-share n-states))
+                  (if-let [c (weighted
+                              (user-preferences env global-share n-states))]
+                    c
+                    :without-good)
 
                   :else s)}})))))
 

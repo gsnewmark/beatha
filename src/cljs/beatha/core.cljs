@@ -669,8 +669,7 @@
     (init-state
       [_]
       {:config-changed (chan)
-       :width (:width data)
-       :height (:height data)
+       :year-period (:year-period data)
        :corp-quantity (:corp-quantity data)})
     om/IWillMount
     (will-mount [_]
@@ -678,11 +677,13 @@
             reset-c (om/get-state owner :reset)]
         (go
           (while true
-            (let [corp-quantity (<! config-c)]
-              (om/transact! data #(assoc % :corp-quantity corp-quantity))
+            (let [[corp-quantity year-period] (<! config-c)]
+              (om/transact! data #(assoc %
+                                    :corp-quantity corp-quantity
+                                    :year-period year-period))
               (put! reset-c true))))))
     om/IRenderState
-    (render-state [_ {:keys [corp-quantity config-changed
+    (render-state [_ {:keys [corp-quantity year-period config-changed
                              command-info-channel]
                       :as state}]
       (let [started (:started data)]
@@ -694,10 +695,16 @@
                :disabled started
                :onChange
                #(handle-int-config-change % owner state :corp-quantity)})
+         (dom/label nil "Year period (num. of iterations)")
+         (dom/input
+          #js {:type "text" :className "form-control" :value year-period
+               :disabled started
+               :onChange
+               #(handle-int-config-change % owner state :year-period)})
          (dom/button
           #js {:type "button" :className "btn btn-danger btn-lg btn-block"
                :disabled started
-               :onClick #(do (put! config-changed corp-quantity)
+               :onClick #(do (put! config-changed [corp-quantity year-period])
                              (put! command-info-channel
                                    {:type :change-corp-quantity
                                     :cmd corp-quantity}))}
@@ -730,12 +737,14 @@
     (automaton-output-handler [_ data owner msg]
       (let [corp-quantity
             (get-in @data [:automaton :specific :corp-quantity] 4)
+            year-period
+            (get-in @data [:automaton :specific :year-period] 12)
             corps (corps corp-quantity)
             competitor-count
             (count (filter (fn [[k v]] (>= v 0))
                            (dissoc (:capital msg) :government)))
             command-info-c (om/get-state owner :command-info-channel)]
-        (when (zero? (mod (:iteration msg) 6))
+        (when (zero? (mod (:iteration msg) (/ year-period 2)))
           (doseq [corp corps]
             (let [cmd
                   (update-in (a/conservative-corp
@@ -786,7 +795,8 @@
          (partial render-cellular-automaton
                   (gen-app-view
                    a/market-model market-model-customization)
-                  {:corp-quantity 4}))))))
+                  {:corp-quantity 4
+                   :year-period 12}))))))
 
 (defn render-menu-view
   []

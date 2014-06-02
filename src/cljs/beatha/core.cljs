@@ -744,13 +744,25 @@
         (when (zero? (mod (:iteration msg) (/ year-period 2)))
           (doseq [corp corps]
             (let [cmd
-                  (update-in (a/conservative-corp
+                  (update-in (a/conservative-corp-price
                               (cons competitor-count
                                     ((juxt (:global-user-share msg)
                                            (:capital msg)
                                            (:capital-diff msg)
                                            (:prices msg))
                                      corp)))
+                             [:cmd]
+                             (fn [p] [corp p]))]
+              (put! command-info-c cmd))))
+        (when (zero? (mod (:iteration msg) year-period))
+          (doseq [corp corps]
+            (let [cmd
+                  (update-in (a/conservative-corp-tax
+                              (:tax-rate msg)
+                              (:income-tax-rate msg)
+                              (:fixed-tax msg)
+                              (get-in msg [:capital-incomings corp])
+                              (get-in msg [:capital-expenditures corp]))
                              [:cmd]
                              (fn [p] [corp p]))]
               (put! command-info-c cmd))))

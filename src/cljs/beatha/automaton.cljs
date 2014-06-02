@@ -240,9 +240,13 @@
           :capital
           (merge {:government 1000} (corp-params n (constantly 0)))
           :capital-diff
+          (corp-params n (constantly 0))
+          :capital-incomings
+          (corp-params n (constantly 0))
+          :capital-expenditures
           (corp-params n (constantly 0))}))
 
-(defn conservative-corp
+(defn conservative-corp-price
   [[competitor-count share capital capital-diff price]]
   (cond
    (< capital-diff 0)                        {:type :change-price
@@ -263,7 +267,20 @@
                                               :cmd (* price 1.2)}
    (>= share 0.5)                            {:type :change-price
                                               :cmd (* price 1.5)}
-   :else                                     {:type :do-nothing}))
+   :else                                     {:type :change-price
+                                              :cmd price}))
+(defn conservative-corp-tax
+  [tax-rate income-tax-rate fixed-tax
+   capital-incomings capital-expenditures]
+  (let [tax (* tax-rate capital-incomings)
+        income-tax (* income-tax-rate
+                      (- capital-incomings capital-expenditures))]
+    {:type :change-taxation-type
+     :cmd
+     (->> [[:rate tax] [:income-rate income-tax] [:fixed fixed-tax]]
+          (sort-by second)
+          first
+          first)}))
 
 (def market-model
   (let [env (atom (market-model-default-state 4))
@@ -348,7 +365,9 @@
                   (-> env
                       (update-in [:capital key] + diff)
                       (update-in [:capital :government] + tax)
-                      (update-in [:capital-diff key] + diff))))]
+                      (update-in [:capital-diff key] + diff)
+                      (update-in [:capital-incomings key] + income)
+                      (update-in [:capital-expenditures key] + exp))))]
           (swap! env-atom
                  (fn [e]
                    (-> (reduce update-capitals e (keys (:prices e)))
@@ -415,6 +434,14 @@
                   (swap! env #(-> %
                                   (assoc-in [:prices corp] price)
                                   (assoc-in [:capital-diff corp] 0))))
+
+                :change-taxation-type
+                (let [[corp taxation-type] cmd]
+                  (swap! env #(-> %
+                                  (assoc-in [:taxation-type corp]
+                                            taxation-type)
+                                  (assoc-in [:capital-incomings corp] 0)
+                                  (assoc-in [:capital-expenditures corp] 0))))
 
                 :do-nothing
                 nil

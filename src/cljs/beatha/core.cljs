@@ -482,7 +482,7 @@
   [data owner]
   (reify
     om/IRenderState
-    (render-state [_ {:keys [tax-rate fixed-tax depreciation
+    (render-state [_ {:keys [tax-rate income-tax-rate fixed-tax depreciation
                              a p command-info-channel]
                       :as state}]
       (dom/div
@@ -495,6 +495,14 @@
          #js {:type "text" :className "form-control" :value tax-rate
               :onChange
               #(handle-int-config-change % owner state :tax-rate)}))
+
+       (dom/span
+        nil
+        (dom/label nil "Income tax rate (%)")
+        (dom/input
+         #js {:type "text" :className "form-control" :value income-tax-rate
+              :onChange
+              #(handle-int-config-change % owner state :income-tax-rate)}))
 
        (dom/span
         nil
@@ -526,6 +534,8 @@
              :onClick
              #(->> {:tax-rate
                     (normalize (/ (js/parseFloat tax-rate) 100) 0 1.0)
+                    :income-tax-rate
+                    (normalize (/ (js/parseFloat income-tax-rate) 100) 0 1.0)
                     :depreciation
                     (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)
                     :fixed-tax (js/parseInt fixed-tax)}
@@ -622,6 +632,14 @@
 
            (dom/span
             nil
+            (dom/b nil "Income tax rate: ")
+            (dom/span
+             nil
+             (num->percent (get-market-info [:income-tax-rate])))
+            (dom/div nil))
+
+           (dom/span
+            nil
             (dom/b nil "Fixed tax: ")
             (dom/span nil (get-market-info [:fixed-tax]))
             (dom/div nil))
@@ -705,6 +723,8 @@
         (merge (:utility-params params)
                {:tax-rate
                 (apply str (butlast (num->percent (:tax-rate params))))
+                :income-tax-rate
+                (apply str (butlast (num->percent (:income-tax-rate params))))
                 :fixed-tax (:fixed-tax params)
                 :depreciation
                 (apply str

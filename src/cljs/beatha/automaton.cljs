@@ -215,7 +215,8 @@
 
 (def market-model-default-params
   {:tax-rate 0.05
-   :fixed-tax 20
+   :income-tax-rate 0.1
+   :fixed-tax 200
    :expenditures-per-cell
    {:government 1 :corp 20}
    :depreciation 0.03
@@ -339,7 +340,8 @@
                       tax (if (> income 0)
                             (condp = (get-in env [:taxation-type key] :rate)
                               :rate (* (+ income exp) (get env :tax-rate 0))
-                              :income-rate (* income (get env :tax-rate 0))
+                              :income-rate
+                              (* income (get env :income-tax-rate 0))
                               :fixed (get env :fixed-tax 0))
                             0)
                       diff (- income tax exp)]

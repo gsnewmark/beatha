@@ -483,37 +483,13 @@
   (reify
     om/IRenderState
     (render-state [_ {:keys [tax-rate fixed-tax depreciation
-                             a p command-info-channel
-                             taxation-type]
+                             a p command-info-channel]
                       :as state}]
       (dom/div
        #js {:role "form" :className "economic-model-control"}
 
-       (dom/label nil "Taxation type")
-       (dom/div
-        #js {:className "radio"}
-        (dom/input
-         #js {:type "radio" :name "taxation-type" :value "rate"
-              :checked (= :rate taxation-type)
-              :onChange #(om/set-state! owner :taxation-type :rate)}
-         "Rate"))
-       (dom/div
-        #js {:className "radio"}
-        (dom/input
-         #js {:type "radio" :name "taxation-type" :value "income-rate"
-              :checked (= :income-rate taxation-type)
-              :onChange #(om/set-state! owner :taxation-type :income-rate)}
-         "Income rate"))
-       (dom/div
-        #js {:className "radio"}
-        (dom/input
-         #js {:type "radio" :name "taxation-type" :value "fixed"
-              :checked (= :fixed taxation-type)
-              :onChange #(om/set-state! owner :taxation-type :fixed)}
-         "Fixed"))
-
        (dom/span
-        #js {:hidden (not (#{:rate :income-rate} taxation-type))}
+        nil
         (dom/label nil "Tax rate (%)")
         (dom/input
          #js {:type "text" :className "form-control" :value tax-rate
@@ -521,7 +497,7 @@
               #(handle-int-config-change % owner state :tax-rate)}))
 
        (dom/span
-        #js {:hidden (not= :fixed taxation-type)}
+        nil
         (dom/label nil "Fixed tax")
         (dom/input
          #js {:type "text" :className "form-control" :value fixed-tax
@@ -554,7 +530,6 @@
                     (normalize (/ (js/parseFloat depreciation) 100) 0 1.0)
                     :fixed-tax (js/parseInt fixed-tax)}
                    (filter (comp is-number? second))
-                   (into {:taxation-type taxation-type})
                    (merge
                     {:utility-params (->> {:a (js/parseFloat a)
                                            :p (js/parseFloat p)}
@@ -594,8 +569,7 @@
     (reify
       om/IRender
       (render [_]
-        (let [taxation-type (get-market-info [:taxation-type])
-              corps
+        (let [corps
               (map (fn [c] {:corp c})
                    (corps
                     (get-in data [:automaton :specific :corp-quantity] 4)))]
@@ -631,12 +605,15 @@
             (om/build-all
              (gen-market-info-box get-market-info [:prices]) corps))
 
-           (dom/b nil "Taxation type: ")
-           (dom/span nil (keyword->str taxation-type))
-           (dom/div nil)
+           (dom/b nil "Taxation types")
+           (apply
+            dom/span nil
+            (om/build-all
+             (gen-market-info-box (comp keyword->str get-market-info)
+                                  [:taxation-type]) corps))
 
            (dom/span
-            #js {:hidden (not (#{:rate :income-rate} taxation-type))}
+            nil
             (dom/b nil "Tax rate: ")
             (dom/span
              nil
@@ -644,7 +621,7 @@
             (dom/div nil))
 
            (dom/span
-            #js {:hidden (not= :fixed taxation-type)}
+            nil
             (dom/b nil "Fixed tax: ")
             (dom/span nil (get-market-info [:fixed-tax]))
             (dom/div nil))
@@ -725,10 +702,10 @@
     (automaton-command-view [_] market-command-view)
     (automaton-command-initial-state [_]
       (let [params a/market-model-default-params]
-        (merge (select-keys params [:fixed-tax :taxation-type])
-               (:utility-params params)
+        (merge (:utility-params params)
                {:tax-rate
                 (apply str (butlast (num->percent (:tax-rate params))))
+                :fixed-tax (:fixed-tax params)
                 :depreciation
                 (apply str
                        (butlast (num->percent (:depreciation params))))})))

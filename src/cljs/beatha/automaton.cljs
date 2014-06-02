@@ -214,8 +214,7 @@
              (range 1 (inc n)))))
 
 (def market-model-default-params
-  {:taxation-type :rate
-   :tax-rate 0.05
+  {:tax-rate 0.05
    :fixed-tax 20
    :expenditures-per-cell
    {:government 1 :corp 20}
@@ -233,6 +232,8 @@
   (merge market-model-default-params
          {:corp-quantity n
           :iteration 0
+          :taxation-type
+          (corp-params n (constantly :rate))
           :prices
           (corp-params n (constantly 100))
           :capital
@@ -336,7 +337,7 @@
                       exp (* cell-quantity
                              (get-in env [:expenditures-per-cell :corp] 0))
                       tax (if (> income 0)
-                            (condp = (get env :taxation-type :rate)
+                            (condp = (get-in env [:taxation-type key] :rate)
                               :rate (* (+ income exp) (get env :tax-rate 0))
                               :income-rate (* income (get env :tax-rate 0))
                               :fixed (get env :fixed-tax 0))

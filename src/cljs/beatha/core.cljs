@@ -9,7 +9,7 @@
 
 (def app-state {:automaton {:grid {:width 10 :height 10 :cells {}}
                             :display {:width 580 :height 580}
-                            :util {:started false}}
+                            :util {:started false :iteration 0}}
                 :command {}})
 
 
@@ -143,6 +143,7 @@
             cell-height (/ (get-in data [:display :height]) grid-height)
             default-cell (:default-cell state)]
         (apply dom/div #js {:className "automaton-grid"}
+               (dom/b nil "Iteration: " (get-in data [:util :iteration] 0))
                (mapv (fn [y]
                        (apply dom/div #js {:className "automaton-row row"}
                               (mapv
@@ -278,6 +279,8 @@
                                data
                                [:automaton :grid]
                                (partial a/next-grid automaton-spec))
+                              (om/transact!
+                               data [:automaton :util :iteration] inc)
                               (a/fill-output-info-channel
                                automaton-spec
                                output-info-c
@@ -736,12 +739,14 @@
             (get-in @data [:automaton :specific :corp-quantity] 4)
             year-period
             (get-in @data [:automaton :specific :year-period] 12)
+            iteration
+            (get-in @data [:automaton :util :iteration] 0)
             corps (corps corp-quantity)
             competitor-count
             (count (filter (fn [[k v]] (>= v 0))
                            (dissoc (:capital msg) :government)))
             command-info-c (om/get-state owner :command-info-channel)]
-        (when (zero? (mod (:iteration msg) (/ year-period 2)))
+        (when (zero? (mod iteration (/ year-period 2)))
           (doseq [corp corps]
             (let [cmd
                   (update-in (a/conservative-corp-price
@@ -754,7 +759,7 @@
                              [:cmd]
                              (fn [p] [corp p]))]
               (put! command-info-c cmd))))
-        (when (zero? (mod (:iteration msg) year-period))
+        (when (zero? (mod iteration year-period))
           (doseq [corp corps]
             (let [cmd
                   (update-in (a/conservative-corp-tax

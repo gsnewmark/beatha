@@ -216,7 +216,7 @@
 (def market-model-default-params
   {:tax-rate 0.05
    :income-tax-rate 0.1
-   :fixed-tax 200
+   :fixed-tax 2000
    :expenditures-per-cell
    {:government 1 :corp 20}
    :depreciation 0.03
@@ -232,7 +232,6 @@
   [n]
   (merge market-model-default-params
          {:corp-quantity n
-          :iteration 0
           :taxation-type
           (corp-params n (constantly :rate))
           :prices
@@ -371,7 +370,6 @@
           (swap! env-atom
                  (fn [e]
                    (-> (reduce update-capitals e (keys (:prices e)))
-                       (update-in [:iteration] inc)
                        (update-in
                         [:capital :government]
                         (fn [capital]

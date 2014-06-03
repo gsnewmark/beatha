@@ -235,7 +235,8 @@
                         (when reset-grid?
                           (om/transact!
                            data [:automaton :grid]
-                           (fn [grid] (assoc grid :cells {})))))
+                           (fn [grid] (assoc grid :cells {})))
+                          (om/update! data [:automaton :util :iteration] 0)))
 
                      grid-c
                      ([[width height]]
@@ -668,6 +669,7 @@
       [_]
       {:config-changed (chan)
        :year-period (:year-period data)
+       :stop-after (:stop-after data)
        :corp-quantity (:corp-quantity data)})
     om/IWillMount
     (will-mount [_]
@@ -675,14 +677,15 @@
             reset-c (om/get-state owner :reset)]
         (go
           (while true
-            (let [[corp-quantity year-period] (<! config-c)]
+            (let [[corp-quantity year-period stop-after] (<! config-c)]
               (om/transact! data #(assoc %
                                     :corp-quantity corp-quantity
-                                    :year-period year-period))
+                                    :year-period year-period
+                                    :stop-after stop-after))
               (put! reset-c true))))))
     om/IRenderState
     (render-state [_ {:keys [corp-quantity year-period config-changed
-                             command-info-channel]
+                             stop-after command-info-channel]
                       :as state}]
       (let [started (:started data)]
         (dom/div
@@ -699,10 +702,17 @@
                :disabled started
                :onChange
                #(handle-int-config-change % owner state :year-period)})
+         (dom/label nil "Stop after iteration (0 - never)")
+         (dom/input
+          #js {:type "text" :className "form-control" :value stop-after
+               :disabled started
+               :onChange
+               #(handle-int-config-change % owner state :stop-after)})
          (dom/button
           #js {:type "button" :className "btn btn-danger btn-lg btn-block"
                :disabled started
-               :onClick #(do (put! config-changed [corp-quantity year-period])
+               :onClick #(do (put! config-changed
+                                   [corp-quantity year-period stop-after])
                              (put! command-info-channel
                                    {:type :change-corp-quantity
                                     :cmd corp-quantity}))}
@@ -739,38 +749,45 @@
             (get-in @data [:automaton :specific :corp-quantity] 4)
             year-period
             (get-in @data [:automaton :specific :year-period] 12)
+            stop-after
+            (get-in @data [:automaton :specific :stop-after] 0)
             iteration
             (get-in @data [:automaton :util :iteration] 0)
             corps (corps corp-quantity)
             competitor-count
             (count (filter (fn [[k v]] (>= v 0))
                            (dissoc (:capital msg) :government)))
-            command-info-c (om/get-state owner :command-info-channel)]
-        (when (zero? (mod iteration (/ year-period 2)))
-          (doseq [corp corps]
-            (let [cmd
-                  (update-in (a/conservative-corp-price
-                              (cons competitor-count
-                                    ((juxt (:global-user-share msg)
-                                           (:capital msg)
-                                           (:capital-diff msg)
-                                           (:prices msg))
-                                     corp)))
-                             [:cmd]
-                             (fn [p] [corp p]))]
-              (put! command-info-c cmd))))
-        (when (zero? (mod iteration year-period))
-          (doseq [corp corps]
-            (let [cmd
-                  (update-in (a/conservative-corp-tax
-                              (:tax-rate msg)
-                              (:income-tax-rate msg)
-                              (:fixed-tax msg)
-                              (get-in msg [:capital-incomings corp])
-                              (get-in msg [:capital-expenditures corp]))
-                             [:cmd]
-                             (fn [p] [corp p]))]
-              (put! command-info-c cmd))))
+            command-info-c (om/get-state owner :command-info-channel)
+            started-c (om/get-state owner :started)]
+        (if (and (not (= stop-after 0))
+                 (>= iteration stop-after))
+          (put! started-c false)
+          (do
+            (when (zero? (mod iteration (/ year-period 2)))
+              (doseq [corp corps]
+                (let [cmd
+                      (update-in (a/conservative-corp-price
+                                  (cons competitor-count
+                                        ((juxt (:global-user-share msg)
+                                               (:capital msg)
+                                               (:capital-diff msg)
+                                               (:prices msg))
+                                         corp)))
+                                 [:cmd]
+                                 (fn [p] [corp p]))]
+                  (put! command-info-c cmd))))
+            (when (zero? (mod iteration year-period))
+              (doseq [corp corps]
+                (let [cmd
+                      (update-in (a/conservative-corp-tax
+                                  (:tax-rate msg)
+                                  (:income-tax-rate msg)
+                                  (:fixed-tax msg)
+                                  (get-in msg [:capital-incomings corp])
+                                  (get-in msg [:capital-expenditures corp]))
+                                 [:cmd]
+                                 (fn [p] [corp p]))]
+                  (put! command-info-c cmd))))))
         (om/transact! data (fn [d] (assoc d :market-state msg)))))
     (automaton-output-view [_] market-output-view)
     (automaton-output-reset [_ data _]
@@ -810,7 +827,8 @@
                   (gen-app-view
                    a/market-model market-model-customization)
                   {:corp-quantity 4
-                   :year-period 12}))))))
+                   :year-period 12
+                   :stop-after 0}))))))
 
 (defn render-menu-view
   []

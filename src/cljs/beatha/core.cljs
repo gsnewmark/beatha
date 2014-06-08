@@ -7,7 +7,7 @@
 
 (enable-console-print!)
 
-(def app-state {:automaton {:grid {:width 10 :height 10 :cells {}}
+(def app-state {:automaton {:grid {:width 33, :height 33, :cells {[29 29] {:state :corp-7}, [13 17] {:state :corp-7}, [31 31] {:state :corp-8}, [15 19] {:state :corp-8}, [5 11] {:state :corp-3}, [21 23] {:state :corp-3}, [7 13] {:state :corp-4}, [23 25] {:state :corp-4}, [25 25] {:state :corp-5}, [9 13] {:state :corp-5}, [27 27] {:state :corp-6}, [11 15] {:state :corp-6}, [1 7] {:state :corp-1}, [17 19] {:state :corp-1}, [3 9] {:state :corp-2}, [19 21] {:state :corp-2}, [29 31] {:state :corp-7}, [13 19] {:state :corp-7}, [31 29] {:state :corp-8}, [15 17] {:state :corp-8}, [5 13] {:state :corp-3}, [21 25] {:state :corp-3}, [7 11] {:state :corp-4}, [23 23] {:state :corp-4}, [25 27] {:state :corp-5}, [9 15] {:state :corp-5}, [27 25] {:state :corp-6}, [11 13] {:state :corp-6}, [1 9] {:state :corp-1}, [17 21] {:state :corp-1}, [3 7] {:state :corp-2}, [19 19] {:state :corp-2}, [29 25] {:state :corp-7}, [13 13] {:state :corp-7}, [31 27] {:state :corp-8}, [15 15] {:state :corp-8}, [5 7] {:state :corp-3}, [21 19] {:state :corp-3}, [7 9] {:state :corp-4}, [23 21] {:state :corp-4}, [25 29] {:state :corp-5}, [9 17] {:state :corp-5}, [27 31] {:state :corp-6}, [11 19] {:state :corp-6}, [15 14] {:state :without-good}, [1 11] {:state :corp-1}, [17 23] {:state :corp-1}, [3 13] {:state :corp-2}, [19 25] {:state :corp-2}, [29 27] {:state :corp-7}, [13 15] {:state :corp-7}, [31 25] {:state :corp-8}, [15 13] {:state :corp-8}, [5 9] {:state :corp-3}, [21 21] {:state :corp-3}, [7 7] {:state :corp-4}, [23 19] {:state :corp-4}, [25 31] {:state :corp-5}, [9 19] {:state :corp-5}, [27 29] {:state :corp-6}, [11 17] {:state :corp-6}, [1 13] {:state :corp-1}, [17 25] {:state :corp-1}, [3 11] {:state :corp-2}, [19 23] {:state :corp-2}, [29 21] {:state :corp-7}, [13 9] {:state :corp-7}, [31 23] {:state :corp-8}, [15 11] {:state :corp-8}, [5 19] {:state :corp-3}, [21 31] {:state :corp-3}, [23 1] {:state :corp-4}, [7 21] {:state :corp-4}, [25 17] {:state :corp-5}, [9 5] {:state :corp-5}, [27 19] {:state :corp-6}, [11 7] {:state :corp-6}, [1 15] {:state :corp-1}, [17 27] {:state :corp-1}, [3 17] {:state :corp-2}, [19 29] {:state :corp-2}, [29 23] {:state :corp-7}, [13 11] {:state :corp-7}, [31 21] {:state :corp-8}, [15 9] {:state :corp-8}, [21 1] {:state :corp-3}, [5 21] {:state :corp-3}, [7 19] {:state :corp-4}, [23 31] {:state :corp-4}, [25 19] {:state :corp-5}, [9 7] {:state :corp-5}, [27 17] {:state :corp-6}, [11 5] {:state :corp-6}, [13 10] {:state :without-good}, [1 17] {:state :corp-1}, [17 29] {:state :corp-1}, [3 15] {:state :corp-2}, [19 27] {:state :corp-2}, [29 17] {:state :corp-7}, [13 5] {:state :corp-7}, [31 19] {:state :corp-8}, [15 7] {:state :corp-8}, [5 15] {:state :corp-3}, [21 27] {:state :corp-3}, [7 17] {:state :corp-4}, [23 29] {:state :corp-4}, [25 21] {:state :corp-5}, [9 9] {:state :corp-5}, [27 23] {:state :corp-6}, [11 11] {:state :corp-6}, [1 19] {:state :corp-1}, [17 31] {:state :corp-1}, [19 1] {:state :corp-2}, [3 21] {:state :corp-2}, [29 19] {:state :corp-7}, [13 7] {:state :corp-7}, [31 17] {:state :corp-8}, [15 5] {:state :corp-8}, [5 17] {:state :corp-3}, [21 29] {:state :corp-3}, [7 15] {:state :corp-4}, [23 27] {:state :corp-4}, [25 23] {:state :corp-5}, [9 11] {:state :corp-5}, [27 21] {:state :corp-6}, [11 9] {:state :corp-6}, [17 1] {:state :corp-1}, [1 21] {:state :corp-1}, [3 19] {:state :corp-2}, [19 31] {:state :corp-2}, [21 28] {:state :without-good}, [13 1] {:state :corp-7}, [29 13] {:state :corp-7}, [15 3] {:state :corp-8}, [31 15] {:state :corp-8}, [5 27] {:state :corp-3}, [21 7] {:state :corp-3}, [7 29] {:state :corp-4}, [23 9] {:state :corp-4}, [25 9] {:state :corp-5}, [9 29] {:state :corp-5}, [27 11] {:state :corp-6}, [11 31] {:state :corp-6}, [1 23] {:state :corp-1}, [17 3] {:state :corp-1}, [3 25] {:state :corp-2}, [19 5] {:state :corp-2}, [13 3] {:state :corp-7}, [29 15] {:state :corp-7}, [15 1] {:state :corp-8}, [31 13] {:state :corp-8}, [5 29] {:state :corp-3}, [21 9] {:state :corp-3}, [7 27] {:state :corp-4}, [23 7] {:state :corp-4}, [25 11] {:state :corp-5}, [9 31] {:state :corp-5}, [27 9] {:state :corp-6}, [11 29] {:state :corp-6}, [1 25] {:state :corp-1}, [17 5] {:state :corp-1}, [3 23] {:state :corp-2}, [19 3] {:state :corp-2}, [29 9] {:state :corp-7}, [13 29] {:state :corp-7}, [31 11] {:state :corp-8}, [15 31] {:state :corp-8}, [5 23] {:state :corp-3}, [21 3] {:state :corp-3}, [7 25] {:state :corp-4}, [23 5] {:state :corp-4}, [25 13] {:state :corp-5}, [11 3] {:state :corp-6}, [27 15] {:state :corp-6}, [1 27] {:state :corp-1}, [17 7] {:state :corp-1}, [3 29] {:state :corp-2}, [19 9] {:state :corp-2}, [9 1] {:state :corp-5}, [29 11] {:state :corp-7}, [13 31] {:state :corp-7}, [31 9] {:state :corp-8}, [15 29] {:state :corp-8}, [17 10] {:state :without-good}, [5 25] {:state :corp-3}, [21 5] {:state :corp-3}, [7 23] {:state :corp-4}, [23 3] {:state :corp-4}, [25 15] {:state :corp-5}, [11 1] {:state :corp-6}, [27 13] {:state :corp-6}, [1 29] {:state :corp-1}, [17 9] {:state :corp-1}, [3 27] {:state :corp-2}, [19 7] {:state :corp-2}, [9 3] {:state :corp-5}, [29 5] {:state :corp-7}, [13 25] {:state :corp-7}, [31 7] {:state :corp-8}, [15 27] {:state :corp-8}, [5 3] {:state :corp-3}, [21 15] {:state :corp-3}, [7 5] {:state :corp-4}, [23 17] {:state :corp-4}, [25 1] {:state :corp-5}, [9 21] {:state :corp-5}, [27 3] {:state :corp-6}, [11 23] {:state :corp-6}, [1 31] {:state :corp-1}, [17 11] {:state :corp-1}, [3 1] {:state :corp-2}, [19 13] {:state :corp-2}, [29 7] {:state :corp-7}, [13 27] {:state :corp-7}, [31 5] {:state :corp-8}, [15 25] {:state :corp-8}, [5 5] {:state :corp-3}, [21 17] {:state :corp-3}, [7 3] {:state :corp-4}, [23 15] {:state :corp-4}, [25 3] {:state :corp-5}, [9 23] {:state :corp-5}, [27 1] {:state :corp-6}, [11 21] {:state :corp-6}, [1 1] {:state :corp-1}, [17 13] {:state :corp-1}, [3 31] {:state :corp-2}, [19 11] {:state :corp-2}, [29 1] {:state :corp-7}, [13 21] {:state :corp-7}, [31 3] {:state :corp-8}, [15 23] {:state :corp-8}, [5 31] {:state :corp-3}, [21 11] {:state :corp-3}, [7 1] {:state :corp-4}, [23 13] {:state :corp-4}, [25 5] {:state :corp-5}, [9 25] {:state :corp-5}, [27 7] {:state :corp-6}, [11 27] {:state :corp-6}, [1 3] {:state :corp-1}, [17 15] {:state :corp-1}, [3 5] {:state :corp-2}, [19 17] {:state :corp-2}, [29 3] {:state :corp-7}, [13 23] {:state :corp-7}, [31 1] {:state :corp-8}, [15 21] {:state :corp-8}, [5 1] {:state :corp-3}, [21 13] {:state :corp-3}, [7 31] {:state :corp-4}, [23 11] {:state :corp-4}, [25 7] {:state :corp-5}, [9 27] {:state :corp-5}, [27 5] {:state :corp-6}, [11 25] {:state :corp-6}, [1 5] {:state :corp-1}, [17 17] {:state :corp-1}, [3 3] {:state :corp-2}, [19 15] {:state :corp-2}}}
                             :display {:width 580 :height 580}
                             :util {:started false :iteration 0}}
                 :command {}})
@@ -586,7 +586,7 @@
         (let [corps
               (map (fn [c] {:corp c})
                    (corps
-                    (get-in data [:automaton :specific :corp-quantity] 4)))]
+                    (get-in data [:automaton :specific :corp-quantity] 8)))]
           (dom/div
            #js {:className "row"
                 :hidden (not (contains? data :market-state))}
@@ -724,7 +724,7 @@
     CellularAutomatonAppCustomization
     (automaton-specific-css [_ data]
       (let [corp-quantity
-            (get-in data [:automaton :specific :corp-quantity] 4)
+            (get-in data [:automaton :specific :corp-quantity] 8)
             corps (corps corp-quantity)]
         (->> (map generate-corp-css corps (random-hsl-colors corp-quantity))
              (interpose "\n")
@@ -746,13 +746,17 @@
       (put! command-channel {:type :reset}))
     (automaton-output-handler [_ data owner msg]
       (let [corp-quantity
-            (get-in @data [:automaton :specific :corp-quantity] 4)
+            (get-in @data [:automaton :specific :corp-quantity] 8)
             year-period
             (get-in @data [:automaton :specific :year-period] 12)
             stop-after
             (get-in @data [:automaton :specific :stop-after] 0)
             iteration
             (get-in @data [:automaton :util :iteration] 0)
+            width
+            (get-in @data [:automaton :grid :width] 0)
+            height
+            (get-in @data [:automaton :grid :height] 0)
             corps (corps corp-quantity)
             competitor-count
             (count (filter (fn [[k v]] (>= v 0))
@@ -776,6 +780,20 @@
                                  [:cmd]
                                  (fn [p] [corp p]))]
                   (put! command-info-c cmd))))
+            (when (zero? (mod iteration (dec year-period)))
+              (let [corps-with-consumers
+                    (->> (:global-user-share msg)
+                         (filter (fn [[k v]] (> v 0)))
+                         (map first)
+                         (into #{}))
+                    prices
+                    (->> (:prices msg)
+                         (filter (comp corps-with-consumers first))
+                         (map second))
+                    avg-price (/ (apply + prices) (count prices))
+                    new-tax (* 0.03 width height avg-price)]
+                (put! command-info-c
+                      {:type :config :cmd {:fixed-tax new-tax}})))
             (when (zero? (mod iteration year-period))
               (doseq [corp corps]
                 (let [cmd
@@ -826,9 +844,9 @@
          (partial render-cellular-automaton
                   (gen-app-view
                    a/market-model market-model-customization)
-                  {:corp-quantity 4
+                  {:corp-quantity 8
                    :year-period 12
-                   :stop-after 0}))))))
+                   :stop-after 250}))))))
 
 (defn render-menu-view
   []

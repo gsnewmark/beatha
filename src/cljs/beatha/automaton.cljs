@@ -282,7 +282,7 @@
           first)}))
 
 (def market-model
-  (let [env (atom (market-model-default-state 4))
+  (let [env (atom (market-model-default-state 8))
 
         compute-global-share
         (fn [corp-quantity grid]
